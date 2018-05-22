@@ -103,3 +103,6 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
+temp_log.log
+
+proxy
