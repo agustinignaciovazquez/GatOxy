@@ -1,7 +1,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <ctype.h>
 
+#define TRUE   1
+#define FALSE  0
+
+struct proxy_conf {
+  char proxy_port[5]; //option p
+  char proxy_mng_port[5]; //option o  GET
+  int master_socket;
+  int conf_socket;
+
+  //para metricas
+  int total_transfered_bytes;
+};
+
+struct proxy_conf* proxy_conf;
+struct proxy_conf* parse_cli_options(int argc, char *argv[]);
 
 int main(int argc, char *argv[]) {
 
@@ -9,6 +26,8 @@ int main(int argc, char *argv[]) {
 
   // parsear todos los parametros de entrada a una estructura
   // general que tenga ya los defaults. Que esta estructura este disponible para toda la app.
+  proxy_conf = parse_cli_options(argc, argv);
+  puts(proxy_conf->proxy_port);
 
 
   // inicializar una linked list referenciada por el struct de configuracion
@@ -32,4 +51,60 @@ int main(int argc, char *argv[]) {
   //        leido, se ejecuta el estado correspondiente que leera o escribira, cambiara el estado y terminara.
 
 
+}
+
+/**
+*Name: new_proxy_conf
+*
+*Description: Create Poxy conf struct with defaults
+*
+*@return proxy_conf
+**/
+struct proxy_conf* new_proxy_conf(){
+  struct proxy_conf* proxy_conf = malloc(sizeof(struct proxy_conf));
+  memcpy(proxy_conf->proxy_mng_port, "1110\0", strlen("1110\0"));
+  memcpy(proxy_conf->proxy_port, "9090\0", strlen("9090\0"));
+  proxy_conf->total_transfered_bytes = 0;
+
+  return proxy_conf;
+}
+
+/**
+*Name: parse_cli_options
+*
+*Description: Parse CLI arguments and return general proxy confs
+*
+*
+*@param int argc
+*@param char *argv[]
+*@return proxy_conf
+**/
+struct proxy_conf* parse_cli_options(int argc, char *argv[]) {
+
+    struct proxy_conf* proxy_conf = new_proxy_conf();
+
+    int c;
+    char *aux;
+
+    // TODO this switch is not working, using defaults mean while
+    while ((c = getopt (argc, argv, "p:P")) != -1)
+        switch (c) {
+            case 'P': //proxy_port
+                memcpy(proxy_conf->proxy_port, optarg, strlen(optarg));
+                break;
+            case 'p': //proxy_mng_port
+                memcpy(proxy_conf->proxy_mng_port, optarg, strlen(optarg));
+                break;
+            case '?':
+                if (optopt == 'p' || optopt == 'P')
+                    fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+                else if (isprint (optopt))
+                    fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+                else
+                    fprintf (stderr,
+                             "Unknown option character `\\x%x'.\n",optopt);
+                exit(1);
+        }
+
+    return proxy_conf;
 }
