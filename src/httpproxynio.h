@@ -6,11 +6,11 @@
 
 /** handler del socket pasivo que atiende conexiones http proxy */
 void
-http_proxy_passive_accept(struct selector_key *key);
+socksv5_passive_accept(struct selector_key *key);
 
 
 /** libera pools internos */
 void
-http_proxy_pool_destroy(void);
+socksv5_pool_destroy(void);
 
 #endif

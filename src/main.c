@@ -24,7 +24,7 @@
 #include <netinet/tcp.h>
 
 #include "selector.h"
-#include "socks5nio.h"
+#include "httpproxynio.h"
 
 static bool done = false;
 

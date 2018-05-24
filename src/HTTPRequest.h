@@ -139,7 +139,7 @@ enum http_method_type {
 };
 
 static const char *METHOD_STRING[] = {
-    "GET", "POST", "HEAD"
+    "DEFAULT","GET", "POST", "HEAD"
 };
 
 static const char * VERSION_STRING = "HTTP/1.";
@@ -182,7 +182,6 @@ struct http_request {
     enum  http_method_type   method;
     char  absolute_uri[MAX_URI_LENGTH];
     char  fqdn[MAX_FQDN];
-    /** port in network byte order */
     in_port_t             dest_port;
 };
 
@@ -242,7 +241,7 @@ void http_parser_close(struct http_parser *p);
  * espacio suficiente.
  */
 int
-http_marshall(buffer *b, const uint8_t method);
+http_marshall(buffer *b, struct http_request * req);
 
 enum http_response_status {
     status_succeeded                          = 0x00,

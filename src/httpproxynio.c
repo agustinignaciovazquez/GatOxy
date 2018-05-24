@@ -10,7 +10,6 @@
 #include <arpa/inet.h>
 
 #include "HTTPRequest.h"
-#include "request.h"
 #include "buffer.h"
 
 #include "stm.h"
@@ -18,7 +17,7 @@
 #include "netutils.h"
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
-
+#define MSG_NOSIGNAL SO_NOSIGPIPE
 enum socks_v5state {
 
     /**
@@ -60,6 +59,8 @@ enum socks_v5state {
      *
      */
     REQUEST_CONNECTING,
+
+    REQUEST_SEND,
 
     /**
      * envía la respuesta del `request' al cliente.
@@ -107,7 +108,7 @@ struct connecting {
     buffer     *wb;
     const int  *client_fd;
     int        *origin_fd;
-    enum socks_response_status *status;
+    enum http_response_status *status;
 };
 
 struct socks5 {
@@ -138,7 +139,6 @@ struct socks5 {
     /** estados para el origin_fd */
     union {
         struct connecting         conn;
-        struct copy               copy;
     } orig;
 
     /** buffers para ser usados read_buffer, write_buffer.*/
@@ -331,9 +331,11 @@ request_read(struct selector_key *key) {
     ptr = buffer_write_ptr(b, &count);
     n = recv(key->fd, ptr, count, 0);
     if(n > 0) {
+        fprintf(stderr, "reading");
         buffer_write_adv(b, n);
         int st = http_consume(b, &d->parser, &error);
         if(http_is_done(st, 0)) {
+            fprintf(stderr, "done reading");
             ret = request_process(key, d);
         }
     } else {
@@ -419,7 +421,7 @@ request_resolv_blocking(void *data) {
     selector_notify_block(key->s, key->fd);
 
     free(data);
-
+    fprintf(stderr, "resolving");
     return 0;
 }
 
@@ -440,7 +442,7 @@ request_resolv_done(struct selector_key *key) {
         freeaddrinfo(s->origin_resolution);
         s->origin_resolution = 0;
     }
-
+    fprintf(stderr, "resolved");
     return request_connect(key, d);
 }
 
@@ -449,7 +451,7 @@ static unsigned
 request_connect(struct selector_key *key, struct request_st *d) {
     bool error                  = false;
     // da legibilidad
-    enum socks_response_status status =  d->status;
+    enum http_response_status status =  d->status;
     int *fd                           =  d->origin_fd;
 
     *fd = socket(ATTACHMENT(key)->origin_domain, SOCK_STREAM, 0);
@@ -508,7 +510,7 @@ static void
 request_read_close(const unsigned state, struct selector_key *key) {
     struct request_st * d = &ATTACHMENT(key)->client.request;
 
-    http_parser_close(&d->parser);
+    //http_parser_close(&d->parser);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -527,12 +529,13 @@ request_connecting_init(const unsigned state, struct selector_key *key) {
 /** la conexión ha sido establecida (o falló)  */
 static unsigned
 request_connecting(struct selector_key *key) {
+    fprintf(stderr, "connecting");
     int error;
     socklen_t len = sizeof(error);
     struct connecting *d  = &ATTACHMENT(key)->orig.conn;
-
+    struct request_st * d1 = &ATTACHMENT(key)->client.request;
     if (getsockopt(key->fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
-        *d->status = status_general_SOCKS_server_failure;
+        *d->status = status_general_proxy_server_failure;
     } else {
         if(error == 0) {
             *d->status     = status_succeeded;
@@ -542,18 +545,19 @@ request_connecting(struct selector_key *key) {
         }
     }
 
-    if(-1 == request_marshall(d->wb, *d->status)) {
-        *d->status = status_general_SOCKS_server_failure;
+    if(-1 == http_marshall(d->wb, &(d1->request))) {
+        *d->status = status_general_proxy_server_failure;
         abort(); // el buffer tiene que ser mas grande en la variable
     }
+
     selector_status s = 0;
-    s |= selector_set_interest    (key->s, *d->client_fd, OP_WRITE);
     s |= selector_set_interest_key(key,                   OP_NOOP);
-    return SELECTOR_SUCCESS == s ? REQUEST_WRITE : ERROR;
+    s |= selector_set_interest    (key->s, *d->origin_fd, OP_WRITE);
+    return SELECTOR_SUCCESS == s ? REQUEST_SEND : ERROR;
 }
 
 void
-log_request(const enum socks_response_status status,
+log_request(const enum http_response_status status,
             const struct sockaddr* clientaddr,
             const struct sockaddr* originaddr) {
     char cbuff[SOCKADDR_TO_HUMAN_MIN * 2 + 2 + 32] = { 0 };
@@ -572,7 +576,42 @@ log_request(const enum socks_response_status status,
 
     fprintf(stdout, "%s\tstatus=%d\n", cbuff, status);
 }
+static unsigned
+request_send(struct selector_key *key) {
+    struct request_st * d = &ATTACHMENT(key)->client.request;
 
+    unsigned  ret       = REQUEST_SEND;
+      buffer *b         = d->wb;
+     uint8_t *ptr;
+      size_t  count;
+     ssize_t  n;
+
+    ptr = buffer_read_ptr(b, &count);
+    n = send(key->fd, ptr, count, MSG_NOSIGNAL);
+    if(n == -1) {
+        ret = ERROR;
+    } else {
+        buffer_read_adv(b, n);
+
+        if(!buffer_can_read(b)) {
+            if(d->status == status_succeeded) {
+                ret = REQUEST_WRITE;
+                selector_set_interest    (key->s,  *d->client_fd, OP_WRITE);
+                selector_set_interest    (key->s,  *d->origin_fd, OP_NOOP);
+            } else {
+                ret = DONE;
+                selector_set_interest    (key->s,  *d->client_fd, OP_NOOP);
+                if(-1 != *d->origin_fd) {
+                    selector_set_interest    (key->s,  *d->origin_fd, OP_NOOP);
+                }
+            }
+        }
+    }
+
+    log_request(d->status, (const struct sockaddr *)&ATTACHMENT(key)->client_addr,
+                           (const struct sockaddr *)&ATTACHMENT(key)->origin_addr);
+    return ret;
+}
 /** escribe todos los bytes de la respuesta al mensaje `request' */
 static unsigned
 request_write(struct selector_key *key) {
@@ -593,9 +632,9 @@ request_write(struct selector_key *key) {
 
         if(!buffer_can_read(b)) {
             if(d->status == status_succeeded) {
-                ret = COPY;
+                ret = DONE;
                 selector_set_interest    (key->s,  *d->client_fd, OP_READ);
-                selector_set_interest    (key->s,  *d->origin_fd, OP_READ);
+                selector_set_interest    (key->s,  *d->origin_fd, OP_NOOP);
             } else {
                 ret = DONE;
                 selector_set_interest    (key->s,  *d->client_fd, OP_NOOP);
@@ -609,4 +648,93 @@ request_write(struct selector_key *key) {
     log_request(d->status, (const struct sockaddr *)&ATTACHMENT(key)->client_addr,
                            (const struct sockaddr *)&ATTACHMENT(key)->origin_addr);
     return ret;
+}
+
+/** definición de handlers para cada estado */
+static const struct state_definition client_statbl[] = {
+    {
+        .state            = REQUEST_READ,
+        .on_arrival       = request_init,
+        .on_departure     = request_read_close,
+        .on_read_ready    = request_read,
+    },{
+        .state            = REQUEST_RESOLV,
+        .on_block_ready   = request_resolv_done,
+    },{
+        .state            = REQUEST_CONNECTING,
+        .on_arrival       = request_connecting_init,
+        .on_write_ready   = request_connecting,
+    },{
+        .state            = REQUEST_SEND,
+        .on_write_ready   = request_send,
+    },{
+        .state            = REQUEST_WRITE,
+        .on_write_ready   = request_write,
+    }, {
+        .state            = DONE,
+
+    },{
+        .state            = ERROR,
+    }
+};
+static const struct state_definition *
+socks5_describe_states(void) {
+    return client_statbl;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Handlers top level de la conexión pasiva.
+// son los que emiten los eventos a la maquina de estados.
+static void
+socksv5_done(struct selector_key* key);
+
+static void
+socksv5_read(struct selector_key *key) {
+    struct state_machine *stm   = &ATTACHMENT(key)->stm;
+    const enum socks_v5state st = stm_handler_read(stm, key);
+
+    if(ERROR == st || DONE == st) {
+        socksv5_done(key);
+    }
+}
+
+static void
+socksv5_write(struct selector_key *key) {
+    struct state_machine *stm   = &ATTACHMENT(key)->stm;
+    const enum socks_v5state st = stm_handler_write(stm, key);
+
+    if(ERROR == st || DONE == st) {
+        socksv5_done(key);
+    }
+}
+
+static void
+socksv5_block(struct selector_key *key) {
+    struct state_machine *stm   = &ATTACHMENT(key)->stm;
+    const enum socks_v5state st = stm_handler_block(stm, key);
+
+    if(ERROR == st || DONE == st) {
+        socksv5_done(key);
+    }
+}
+
+static void
+socksv5_close(struct selector_key *key) {
+    socks5_destroy(ATTACHMENT(key));
+}
+
+static void
+socksv5_done(struct selector_key* key) {
+    const int fds[] = {
+        ATTACHMENT(key)->client_fd,
+        ATTACHMENT(key)->origin_fd,
+    };
+    for(unsigned i = 0; i < N(fds); i++) {
+        if(fds[i] != -1) {
+            if(SELECTOR_SUCCESS != selector_unregister_fd(key->s, fds[i])) {
+                abort();
+            }
+            close(fds[i]);
+        }
+    }
 }

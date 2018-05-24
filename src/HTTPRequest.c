@@ -27,17 +27,17 @@ extern void http_parser_init (struct http_parser *p){
 static enum http_state
 method_recon(const uint8_t b, struct http_parser* p) {
     if('G' == b) {
-        remaining_set(p, GET_LEN-1);
+        remaining_set(p, GET_LEN);
         p->i = 1;
         p->request->method = http_get_method;
         return http_check_method;
     } else if('P' == b) {
-        remaining_set(p, POST_LEN-1);
+        remaining_set(p, POST_LEN);
         p->i = 1;
         p->request->method = http_post_method;
         return http_check_method;
     } else if('H' == b){
-        remaining_set(p, HEAD_LEN-1);
+        remaining_set(p, HEAD_LEN);
         p->i = 1;
         p->request->method = http_head_method;
         return http_check_method;
@@ -80,7 +80,7 @@ uri_check_automata(const uint8_t b, struct http_parser* p) {
      switch(p->uri_state) {
         case uri_init:
               p->host_defined = false;
-              p->dest_port = DEFAULT_HTTP_PORT;
+              p->request->dest_port = DEFAULT_HTTP_PORT;
               p->i_host = 0;
               if (b == '/' || b == '*') {
                  p->uri_state =  uri_path;
@@ -179,10 +179,12 @@ uri_check_automata(const uint8_t b, struct http_parser* p) {
                 p->uri_state = uri_auth_port;
             }
             if (b == '/') {
+                p->request->dest_port = htons(p->request->dest_port);
                 p->uri_state = uri_path;
               }
 
             if (b == '?') {
+                p->request->dest_port = htons(p->request->dest_port);
                 p->uri_state = uri_query;
              }
             break;
@@ -227,7 +229,7 @@ static enum http_state
 version_check(const uint8_t b, struct http_parser* p) {
     if(remaining_is_done(p)){
         if(b == '1' || b == '0'){
-            return http_done_cr;
+            return http_done;
         }
         return http_error_unsupported_version;
     }
@@ -336,16 +338,28 @@ http_consume(buffer *b, struct http_parser *p, bool *errored) {
 }
 
 extern int
-http_marshall(buffer *b, const uint8_t method){
+http_marshall(buffer *b, struct http_request * req){
     size_t n;
     uint8_t *buff = buffer_write_ptr(b, &n);
-    if(n < 2) {
+    size_t method_len, uri_len, version_len;
+    method_len = strlen(METHOD_STRING[req->method]);
+    uri_len = strlen(req->absolute_uri);
+    version_len = strlen("HTTP/1.0");
+    if(n < method_len+uri_len+version_len+4) {
         return -1;
     }
-    buff[0] = 0x05;
-    buff[1] = method;
-    buffer_write_adv(b, 2);
-    return 2;
+    strcpy(buff, METHOD_STRING[req->method]);
+    buff += method_len;
+    buff[0] = SP;
+    strcpy(buff+1, req->absolute_uri);
+    buff += uri_len;
+    buff[0] = SP;
+    strcpy(buff+1, "HTTP/1.0");
+    buff += version_len;
+    buff[0] = CR;
+    buff[1] = LF;
+    buffer_write_adv(b, method_len+uri_len+version_len+4);
+    return method_len+uri_len+version_len+4;
 }
 #include <errno.h>
 
