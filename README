@@ -1,0 +1,84 @@
+
+Servidor SOCKSv5 que muestra la implementación de un servidor concurrente en 
+C utilizando sockets no bloqueantes y pthreads.
+
+La implementación no requiere autenticación y únicamente implementa
+la el comando CONNECT.
+
+Construcción con Autotools:
+--------------------------
+
+La construcción está basada en Autotools 
+<https://www.gnu.org/software/automake/manual/html_node/index.html>.
+
+Para iniciar el sistema de construcción debe ejecutarse el script `autogen.sh'.
+Este scripts leerá archivos como `configure.ac' y generará al script 
+`configure', que a su vez generará los Makefiles.
+
+`configure' permite al usuario ubicar las librerías necesarias en caso de que
+no encuentren en un lugar estándar. Puede verificar su modo de uso ejecutando
+`./configure --help'.
+
+Adicionalmente el usuario puede modificar fácilmente los flags de compilación.
+Por ejemplo si se busca medir la cobertura de las pruebas puede ejecutar:
+   CFLAGS="-fprofile-arcs -ftest-coverage" ./configure
+
+Construcción con CMake:
+-----------------------
+
+Es posible construir el proyecto con <https://cmake.org/>.
+ $ mkdir build
+ $ cd build
+ $ cmake ../
+ $ make
+
+La construcción de CMake está preparado para que si se utiliza
+clang (CC=clang cmake ../) use clang-tidy para realizar análisis estático del
+código.
+
+Requerimientos:
+--------------
+  - autotools/cmake para la construcción
+  - pthreads  para que sea un server iterativo
+  - libcheck  <https://libcheck.github.io/check/> para el testing unitario
+
+Organización:
+------------
+
+Los archivos se encuentran escritos en el dialecto C99, y por defecto la 
+construcción es bastante estricta (-Wall -pedantic -pedantic-errors).
+
+main.c     - programa principal. lee argumentos e implementa el clásico
+             servidor TCP concurrente (con threads).
+socks5.c   - maneja todas las interacciones del protocolo SOCKSv5. Llamado 
+             desde main.c
+hello.c    - parser del primer mensaje del protocolo SOCKSv5. Implementado con
+             funciones callback.
+request.c  - parser del segundo mensaje del protocolo SOCKSv5. Implementado de 
+             forma más tradicional (completa una estructura).
+netutils.c - utilidades varias relacionadas a sockets
+selector.c - selector.c - un muliplexor de entrada salida.
+stm.c      - pequeño motor de maquina de estados donde los eventos son los
+             del selector.c
+socks5nio.c- controla el flujo de un proxy SOCKSv5 (sockets no bloqueantes)             
+
+Los parsers no realizan llamadas de sistema ni alocaciones.
+
+En todo el programa, la única alocación de memoria heap se realiza al entrar
+una nueva conexión, para pasar los argumentos al nuevo hilo.
+
+Algunos de los archivos contienen pruebas de unidad.
+
+Si un archivo se llama `foo.c' su suite de pruebas estará en el archivo 
+`foo_test.c', que generará el binario ejecutable `foo_test'. Cada suite
+contiene uno o más pruebas. Por defecto las pruebas se realizan en paralelo
+utilizando fork (ya que es mas seguro de esta forma de que una prueba no 
+interfiera con otra). Para que corran en el mismo proceso
+y sea sencillo la depuración se recomienda setear la variable de entorno CK_FORK
+con el valor `no'. Por ejemplo:
+    CK_FORK=no gdb ./hello_test
+
+El target `make check' construye todos las pruebas y los ejecutar dejando logs
+de los mismos.
+
+
