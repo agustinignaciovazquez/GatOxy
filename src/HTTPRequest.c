@@ -80,6 +80,7 @@ uri_check_automata(const uint8_t b, struct http_parser* p) {
      switch(p->uri_state) {
         case uri_init:
               p->host_defined = false;
+              p->dest_port = DEFAULT_HTTP_PORT;
               p->i_host = 0;
               if (b == '/' || b == '*') {
                  p->uri_state =  uri_path;
@@ -121,14 +122,14 @@ uri_check_automata(const uint8_t b, struct http_parser* p) {
         case uri_auth_host:
         case uri_auth:
              p->uri_state = uri_invalid;
-             if (IS_USERINFO_CHAR(b) || b == '[' || b == ']') {
+             if (IS_USERINFO_CHAR(b)) {
                 p->host_defined = true;
                 if(p->i_host < MAX_FQDN-1){
                     //defensive programming
                     p->request->fqdn[p->i_host] = b;
                     p->i_host++;
                 }
-                 p->uri_state = uri_auth_host;
+                 p->uri_state = uri_auth;
              }
               if (b == '@') {
                 p->i_host = 0;
@@ -149,8 +150,28 @@ uri_check_automata(const uint8_t b, struct http_parser* p) {
                 p->request->dest_port = 0;
                 p->uri_state = uri_auth_port;
              }
+             if(b == '['){
+                p->i_host = 0;
+                p->host_defined = false;
+                p->uri_state = uri_ipv6;
+             }
               break;
-
+        case uri_ipv6:
+            p->uri_state = uri_invalid;
+             if (IS_USERINFO_CHAR(b) || b == ':') {
+                p->host_defined = true;
+                if(p->i_host < MAX_FQDN-1){
+                    //defensive programming
+                    p->request->fqdn[p->i_host] = b;
+                    p->i_host++;
+                }
+                 p->uri_state = uri_ipv6;
+             }
+            if(b == ']'){
+                p->request->fqdn[p->i_host] = '\0';
+                p->uri_state = uri_auth_host;
+            }
+            break;
         case uri_auth_port:
             p->uri_state = uri_invalid;
             if(IS_NUM(b)){

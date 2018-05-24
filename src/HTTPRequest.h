@@ -111,6 +111,7 @@ static const char tokens[256] = {
   (IS_ALPHANUM(c) || (c) == '.' || (c) == '-' || (c) == '_')
 //-------------------------RFC DEFINES TO PARSE --------------------
 #define MAX_URI_LENGTH 2000
+#define DEFAULT_HTTP_PORT 80
 #define MAX_FQDN 0xff
 #define SP ' '
 #define GET_LEN 3
@@ -152,6 +153,7 @@ enum uri_state {
     uri_auth_userinfo,
     uri_auth_host,
     uri_auth_port,
+    uri_ipv6,
     uri_path,
     uri_query,
     uri_invalid,
