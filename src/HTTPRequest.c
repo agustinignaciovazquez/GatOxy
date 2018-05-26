@@ -405,7 +405,7 @@ extern enum http_state
 http_consume(buffer *b, struct http_parser *p, bool *errored) {
     enum http_state st = p->state;
 
-    while(buffer_can_read(b)) {
+    while(buffer_can_read(b) && p->body_found == false) { // si ya estamos por leer body no consumimos mas y se lo pasamos directamente al origin!
         const uint8_t c = buffer_read(b);
         st = http_parser_feed(p, c);
         if (http_is_done(st, errored)) {
