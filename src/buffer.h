@@ -1,6 +1,7 @@
 #ifndef BUFFER_H_VelRDAxzvnuFmwEaR0ftrkIinkT
 #define BUFFER_H_VelRDAxzvnuFmwEaR0ftrkIinkT
 
+#include <stdint.h>
 #include <stdbool.h>
 #include <unistd.h>  // size_t, ssize_t
 
