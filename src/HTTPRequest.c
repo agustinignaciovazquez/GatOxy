@@ -21,6 +21,9 @@ remaining_is_done(struct http_parser* p) {
 extern void http_parser_init (struct http_parser *p){
     p->state     = http_method;
     p->uri_state     = uri_init;
+    p->content_length = -1;
+    p->host_defined = false;
+
     memset(p->request, 0, sizeof(*(p->request)));
 }
 
@@ -229,7 +232,9 @@ static enum http_state
 version_check(const uint8_t b, struct http_parser* p) {
     if(remaining_is_done(p)){
         if(b == '1' || b == '0'){
-            return http_done;
+            p->request->http_version = b;
+            remaining_set(p, MAX_HEADERS_LENGTH-1); // desde aca en adelante solo usamos el i para chequear el header no pase del limite predefinido por nosotros
+            return http_done_cr;
         }
         return http_error_unsupported_version;
     }
@@ -240,6 +245,53 @@ version_check(const uint8_t b, struct http_parser* p) {
    return http_error_unsupported_version;
 }
 
+static enum http_state
+header_check(const uint8_t b, struct http_parser* p) {
+    if(remaining_is_done(p))
+        return http_error_header_too_long;
+    
+    p->request->headers[p->i] = b;
+    p->i++;
+   return header_check_automata(b,p);
+}
+
+static enum http_state
+header_check_automata(const uint8_t b, struct http_parser* p) {
+    
+     switch(p->h_state) {  
+        case header_init:
+        case header_name:
+            p->h_state = header_invalid;
+            if(b == ':')
+                p->h_state = header_value;
+            if(IS_URL_CHAR(b))
+                p->h_state = header_name;
+            break;
+        case header_value:
+            p->h_state = header_invalid;
+            if(b == CR)
+                p->h_state = header_done_cr;
+            if(IS_URL_CHAR(b))
+                p->h_state = header_value;
+            break;
+        case header_done_cr:
+            if(b == LF)
+                p->h_state = header_done;
+            break;
+        case header_done:
+        case header_invalid:
+            break;
+        default:
+            fprintf(stderr, "unknown uri_state %d\n", p->uri_state);
+            abort();
+    }
+    if(p->h_state == header_done){
+        //si ya esta el header seguimos buscando
+        return http_headers_start;
+    }
+    //si hay un error de uri se pone en el estado del parser, sino se continua verificando
+    return (p->h_state != header_invalid)? http_headers:http_error_malformed_request;
+}
 extern enum http_state http_parser_feed (struct http_parser *p, uint8_t b){
     switch(p->state) {
         case http_method:
@@ -257,10 +309,35 @@ extern enum http_state http_parser_feed (struct http_parser *p, uint8_t b){
             p->state = version_check(b,p);
             break;
         case http_done_cr:
-            p->state = (b == CR)? http_done_lf: http_error_no_end;
+            p->state = http_error_no_end;
+            if(b == CR)
+                p->state = http_done_cr_cr;
             break;
-        case http_done_lf:
-             p->state = (b == LF)? http_done: http_error_no_end;
+        case http_done_cr_cr:
+            p->state = http_error_no_end;
+            if(b == CR)
+                p->state = http_done_cr_cr;
+            if(b == LF)
+                p->state = (b == LF)? http_headers_start;
+            break;
+        case http_headers_start:
+            p->h_state = header_init;
+            if(b == CR){
+                p->state = http_body_start;
+                break;
+            }
+        case http_headers:
+            p->state = header_check(b,p);
+            break;
+        case http_body_start:
+            p->state = http_error_malformed_request;
+            if(b == LF){
+                p->body_found = true;
+                p->state = http_body;
+            }
+            break;
+        case http_body:
+            //p->state = body_check(b,p);
             break;
         case http_done:
         case http_error_unsupported_method:
@@ -268,6 +345,7 @@ extern enum http_state http_parser_feed (struct http_parser *p, uint8_t b){
         case http_error_invalid_uri:
         case http_error_unsupported_version:
         case http_error_no_end:
+        case http_error_malformed_request:
             break;
         default:
             fprintf(stderr, "unknown state %d\n", p->state);

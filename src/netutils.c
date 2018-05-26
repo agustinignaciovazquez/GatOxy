@@ -9,7 +9,7 @@
 #include "netutils.h"
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
-#define MSG_NOSIGNAL SO_NOSIGPIPE
+//macos only#define MSG_NOSIGNAL SO_NOSIGPIPE
 extern const char *
 sockaddr_to_human(char *buff, const size_t buffsize,
                   const struct sockaddr *addr) {

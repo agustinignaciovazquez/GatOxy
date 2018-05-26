@@ -139,7 +139,7 @@ enum http_method_type {
 };
 
 static const char *METHOD_STRING[] = {
-    "DEFAULT","GET", "POST", "HEAD"
+    NULL,"GET", "POST", "HEAD"
 };
 
 static const char * VERSION_STRING = "HTTP/1.";
@@ -160,6 +160,15 @@ enum uri_state {
     uri_done,
 };
 
+enum header_autom_state {
+    header_init,
+    header_name,
+    header_value,
+    header_done_cr,
+    header_invalid,
+    header_done,
+};
+
 enum http_state {
     http_method,
     http_check_method,
@@ -169,19 +178,27 @@ enum http_state {
     http_version,
     http_version_num,
     http_done_cr,
-    http_done_lf,
+    http_done_cr_cr,
+    http_headers_start,
+    http_headers,
+    http_body_start,
+    http_body,
     http_done,
     http_error_unsupported_method,
     http_error_uri_too_long,
+    http_error_header_too_long,
     http_error_invalid_uri,
     http_error_unsupported_version,
     http_error_no_end,
+    http_error_malformed_request,
 };
 
 struct http_request {
     enum  http_method_type   method;
     char  absolute_uri[MAX_URI_LENGTH];
     char  fqdn[MAX_FQDN];
+    char http_version;
+    char headers[MAX_HEADERS_LENGTH];
     in_port_t             dest_port;
 };
 
@@ -190,8 +207,12 @@ struct http_parser {
    enum http_state state;
   /** private only for automata uri check */
   enum uri_state uri_state;
+  enum header_autom_state h_state;
   uint8_t i_host;
   bool  host_defined;
+  uint16_t content_length;
+  bool body_found;
+
    /** cuantos bytes tenemos que leer*/
    uint8_t n;
    /** cuantos bytes ya leimos */
