@@ -2,9 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
-
-extern struct proxy_conf *proxy_conf;
-
+#include "logging.h"
 
 char* get_time(){
   time_t rawtime;
@@ -14,9 +12,9 @@ char* get_time(){
   return asctime (timeinfo);
 }
 
-int write_to_file(char *str) {
+int write_to_file(char *str, char *path) {
   FILE *file;
-  file = fopen("temp_log.log\0", "a"); // TODO que implemente el archivo desde el proxy conf
+  file = fopen(path, "a");
    if(file == NULL){
       printf("\n\n***  Error writing log  ***\n\n");
       return 0;
@@ -30,14 +28,34 @@ void LOG_DEBUG(char *str) {
   char aux[1000];
   strcpy(aux,get_time());
   aux[strlen(aux)-1] = '\0';
-  strcat(aux, ":::: ");
+  strcat(aux, ":: DEBUG ::");
   strcat(aux, str);
-  write_to_file(aux);
+  write_to_file(aux, DEV_LOG);
+}
+
+void LOG_ERROR(char *str) {
+  char aux[1000];
+  strcpy(aux,get_time());
+  aux[strlen(aux)-1] = '\0';
+  strcat(aux, ":: ERROR :: ");
+  strcat(aux, str);
+  write_to_file(aux, DEV_LOG);
+  write_to_file(aux, PROD_LOG);
 }
 
 void LOG_PRIORITY(char *str) {
-  write_to_file("*******************************************");
-  write_to_file(get_time());
-  write_to_file(str);
-  write_to_file("*******************************************");
+  char aux[1000] = "*******************************************\n";
+  strcat(aux, get_time());
+  strcat(aux, str);
+  strcat(aux, "\n");
+  strcat(aux, "*******************************************");
+  write_to_file(aux, DEV_LOG);
+  write_to_file(aux, PROD_LOG);
 }
+
+
+
+
+
+
+
