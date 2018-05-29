@@ -250,10 +250,10 @@ int main () {
 
 	LOG_PRIORITY("Starting new test suit of admin.c");
 	n = 0;
-	// n += test_unsupported_version();
-	// n += test_bad_password();
-	// n += test_blank_password();
-	// n += test_bad_method();
+	n += test_unsupported_version();
+	n += test_bad_password();
+	n += test_blank_password();
+	n += test_bad_method();
 	n += test_metrics();
 	n += test_logs();
 	n += test_with_transformer();
