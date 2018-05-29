@@ -17,7 +17,7 @@
 #include "netutils.h"
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
-// macos only #define MSG_NOSIGNAL SO_NOSIGPIPE
+#define MSG_NOSIGNAL SO_NOSIGPIPE //sacar en final
 enum socks_v5state {
 
     /**
@@ -336,6 +336,8 @@ request_read(struct selector_key *key) {
         int st = http_consume(b, &d->parser, &error);
         if(http_is_done(st, 0)) {
             fprintf(stderr, "done reading");
+            if(error)
+                return ERROR;//TODO mejorar esto
             ret = request_process(key, d);
         }
     } else {
@@ -553,9 +555,10 @@ request_connecting(struct selector_key *key) {
     selector_status s = 0;
     s |= selector_set_interest_key(key,                   OP_NOOP);
     s |= selector_set_interest    (key->s, *d->origin_fd, OP_WRITE);
+    fprintf(stderr, "conectando");
     return SELECTOR_SUCCESS == s ? REQUEST_SEND : ERROR;
 }
-
+/*
 void
 log_request(const enum http_response_status status,
             const struct sockaddr* clientaddr,
@@ -575,7 +578,8 @@ log_request(const enum http_response_status status,
     sockaddr_to_human(cbuff + len, N(cbuff) - len, originaddr);
 
     fprintf(stdout, "%s\tstatus=%d\n", cbuff, status);
-}
+}*/
+
 static unsigned
 request_send(struct selector_key *key) {
     struct request_st * d = &ATTACHMENT(key)->client.request;
@@ -607,9 +611,9 @@ request_send(struct selector_key *key) {
             }
         }
     }
-
-    log_request(d->status, (const struct sockaddr *)&ATTACHMENT(key)->client_addr,
-                           (const struct sockaddr *)&ATTACHMENT(key)->origin_addr);
+fprintf(stderr, "sending");
+  //  log_request(d->status, (const struct sockaddr *)&ATTACHMENT(key)->client_addr,
+    //                       (const struct sockaddr *)&ATTACHMENT(key)->origin_addr);
     return ret;
 }
 /** escribe todos los bytes de la respuesta al mensaje `request' */
@@ -645,8 +649,8 @@ request_write(struct selector_key *key) {
         }
     }
 
-    log_request(d->status, (const struct sockaddr *)&ATTACHMENT(key)->client_addr,
-                           (const struct sockaddr *)&ATTACHMENT(key)->origin_addr);
+   // log_request(d->status, (const struct sockaddr *)&ATTACHMENT(key)->client_addr,
+     //                      (const struct sockaddr *)&ATTACHMENT(key)->origin_addr);
     return ret;
 }
 

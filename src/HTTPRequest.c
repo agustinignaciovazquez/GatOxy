@@ -246,16 +246,6 @@ version_check(const uint8_t b, struct http_parser* p) {
 }
 
 static enum http_state
-header_check(const uint8_t b, struct http_parser* p) {
-    if(remaining_is_done(p))
-        return http_error_header_too_long;
-    
-    p->request->headers[p->i] = b;
-    p->i++;
-   return header_check_automata(b,p);
-}
-
-static enum http_state
 header_check_automata(const uint8_t b, struct http_parser* p) {
     
      switch(p->h_state) {  
@@ -292,6 +282,15 @@ header_check_automata(const uint8_t b, struct http_parser* p) {
     //si hay un error de uri se pone en el estado del parser, sino se continua verificando
     return (p->h_state != header_invalid)? http_headers:http_error_malformed_request;
 }
+static enum http_state
+header_check(const uint8_t b, struct http_parser* p) {
+    if(remaining_is_done(p))
+        return http_error_header_too_long;
+    
+    p->request->headers[p->i] = b;
+    p->i++;
+   return header_check_automata(b,p);
+}
 extern enum http_state http_parser_feed (struct http_parser *p, uint8_t b){
     switch(p->state) {
         case http_method:
@@ -318,7 +317,7 @@ extern enum http_state http_parser_feed (struct http_parser *p, uint8_t b){
             if(b == CR)
                 p->state = http_done_cr_cr;
             if(b == LF)
-                p->state = (b == LF)? http_headers_start;
+                p->state = (b == LF)? : http_headers_start;
             break;
         case http_headers_start:
             p->h_state = header_init;
@@ -375,6 +374,7 @@ http_is_done(const enum http_state state, bool *errored) {
             ret = false;
             break;
     }
+
    return ret;
 }
 
@@ -405,10 +405,10 @@ extern enum http_state
 http_consume(buffer *b, struct http_parser *p, bool *errored) {
     enum http_state st = p->state;
 
-    while(buffer_can_read(b) && p->body_found == false) { // si ya estamos por leer body no consumimos mas y se lo pasamos directamente al origin!
+    while(buffer_can_read(b)) { // si ya estamos por leer body no consumimos mas y se lo pasamos directamente al origin!
         const uint8_t c = buffer_read(b);
         st = http_parser_feed(p, c);
-        if (http_is_done(st, errored)) {
+        if (http_is_done(st, errored) || p->body_found == true){
             break;
         }
     }

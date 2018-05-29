@@ -111,6 +111,7 @@ static const char tokens[256] = {
   (IS_ALPHANUM(c) || (c) == '.' || (c) == '-' || (c) == '_')
 //-------------------------RFC DEFINES TO PARSE --------------------
 #define MAX_URI_LENGTH 2000
+#define MAX_HEADERS_LENGTH 2000
 #define DEFAULT_HTTP_PORT 80
 #define MAX_FQDN 0xff
 #define SP ' '
@@ -275,5 +276,6 @@ enum http_response_status {
     status_command_not_supported              = 0x07,
     status_address_type_not_supported         = 0x08,
 };
-
+/** convierte a errno en socks_response_status */
+enum http_response_status errno_to_socks(int e);
 #endif
