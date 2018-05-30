@@ -17,7 +17,7 @@
 #include "netutils.h"
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
-#define MSG_NOSIGNAL SO_NOSIGPIPE //sacar en final
+//#define MSG_NOSIGNAL SO_NOSIGPIPE //sacar en final
 enum socks_v5state {
 
     /**

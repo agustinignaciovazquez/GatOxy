@@ -119,6 +119,9 @@ static const char tokens[256] = {
 #define POST_LEN 4
 #define HEAD_LEN 4
 #define VERSION_LEN 7
+#define CONTENT_LENGTH_LEN 14
+#define HOST_LEN 4 
+
 /*
  *   The client connects to the server, and sends a HTTP Request
  *
@@ -141,6 +144,10 @@ enum http_method_type {
 
 static const char *METHOD_STRING[] = {
     NULL,"GET", "POST", "HEAD"
+};
+
+static const char *HEADER_STRING[] = {
+    NULL, "HOST", "CONTENT-LENGTH"
 };
 
 static const char * VERSION_STRING = "HTTP/1.";
@@ -168,6 +175,10 @@ enum header_autom_state {
     header_done_cr,
     header_invalid,
     header_done,
+    header_content_length_check,
+    header_host_check,
+    header_content_length_consume,
+    header_host_consume,
 };
 
 enum http_state {
@@ -201,6 +212,8 @@ struct http_request {
     char http_version;
     char headers[MAX_HEADERS_LENGTH];
     in_port_t             dest_port;
+    char header_host[MAX_FQDN];
+    uint8_t header_content_length;
 };
 
 struct http_parser {
@@ -210,6 +223,7 @@ struct http_parser {
   enum uri_state uri_state;
   enum header_autom_state h_state;
   uint8_t i_host;
+  uint8_t i_header;
   bool  host_defined;
   uint16_t content_length;
   bool body_found;

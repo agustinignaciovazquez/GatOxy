@@ -3,6 +3,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include "HTTPRequest.h"
 
@@ -245,11 +246,57 @@ version_check(const uint8_t b, struct http_parser* p) {
    return http_error_unsupported_version;
 }
 
+static enum header_autom_state
+host_case(const uint8_t b, struct http_parser* p){
+
+    int a=toupper(b);
+    p->i_header++;
+    if (!IS_URL_CHAR(a) && (a!=':')){
+        return header_invalid;
+    }else if((p->i_header == HOST_LEN) && (a==':')){
+        return header_host_consume;
+    }else if(a == HEADER_STRING[1][p->i_header]){
+        return header_host_check;
+    }  
+    return (a==':') ? header_value : header_name;
+}
+
+static enum header_autom_state 
+content_length_case(const uint8_t b, struct http_parser* p ){
+
+    int a=toupper(b);
+    p->i_header++;  
+    if (!IS_URL_CHAR(a) && (a!=':')){
+        return header_invalid;
+    }else if((p->i_header == CONTENT_LENGTH_LEN) && (a==':')){
+        return header_content_length_consume;
+    }else if(a == HEADER_STRING[3][p->i_header]){
+        return header_content_length_check;
+    }  
+    return (a==':') ? header_value : header_name;
+
+}
+
+
 static enum http_state
 header_check_automata(const uint8_t b, struct http_parser* p) {
     
      switch(p->h_state) {  
         case header_init:
+            if(b == ':'){
+                p->h_state = header_invalid;
+                break;
+            }
+            if(b == 'C'){
+                p->i_header = 0;
+                p->h_state = header_content_length_check;
+                break;
+            }
+            if(b == 'H'){
+                p->i_header = 0;
+                p->h_state = header_host_check;
+                break;
+            }
         case header_name:
             p->h_state = header_invalid;
             if(b == ':')
@@ -268,6 +315,20 @@ header_check_automata(const uint8_t b, struct http_parser* p) {
             if(b == LF)
                 p->h_state = header_done;
             break;
+        case header_content_length_check:
+                p->h_state = content_length_case(b, p);
+            break;
+        case header_host_check:
+                p->h_state = host_case(b, p);
+            break;
+        case header_content_length_consume:
+            if(IS_NUM(b)){
+                p->request->header_content_length = (p->request->header_content_length)*10 + ASCII_TO_NUM(b);
+            }
+        case header_host_consume:
+            if (p->host_defined == false){
+                    //TODO
+            }
         case header_done:
         case header_invalid:
             break;
@@ -282,6 +343,9 @@ header_check_automata(const uint8_t b, struct http_parser* p) {
     //si hay un error de uri se pone en el estado del parser, sino se continua verificando
     return (p->h_state != header_invalid)? http_headers:http_error_malformed_request;
 }
+
+
+
 static enum http_state
 header_check(const uint8_t b, struct http_parser* p) {
     if(remaining_is_done(p))
