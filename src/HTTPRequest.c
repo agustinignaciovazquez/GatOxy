@@ -249,16 +249,20 @@ version_check(const uint8_t b, struct http_parser* p) {
 static enum header_autom_state
 host_case(const uint8_t b, struct http_parser* p){
 
+
     int a=toupper(b);
     p->i_header++;
     if (!IS_URL_CHAR(a) && (a!=':')){
         return header_invalid;
     }else if((p->i_header == HOST_LEN) && (a==':')){
-        return header_host_consume;
+        return header_host_consume_start;
+    }else if((p->i_header == HOST_LEN)){
+        return header_name;
     }else if(a == HEADER_STRING[1][p->i_header]){
         return header_host_check;
+
     }  
-    return (a==':') ? header_value : header_name;
+    return (a==':') ? header_value_start : header_name;
 }
 
 static enum header_autom_state 
@@ -269,11 +273,13 @@ content_length_case(const uint8_t b, struct http_parser* p ){
     if (!IS_URL_CHAR(a) && (a!=':')){
         return header_invalid;
     }else if((p->i_header == CONTENT_LENGTH_LEN) && (a==':')){
-        return header_content_length_consume;
-    }else if(a == HEADER_STRING[3][p->i_header]){
+        return header_content_length_consume_start;
+    } else if((p->i_header == CONTENT_LENGTH_LEN)){
+        return header_name;
+    }else if(a == HEADER_STRING[2][p->i_header]){
         return header_content_length_check;
     }  
-    return (a==':') ? header_value : header_name;
+    return (a==':') ? header_value_start : header_name;
 
 }
 
@@ -299,17 +305,23 @@ header_check_automata(const uint8_t b, struct http_parser* p) {
             }
         case header_name:
             p->h_state = header_invalid;
-            if(b == ':')
-                p->h_state = header_value;
+           
             if(IS_URL_CHAR(b))
                 p->h_state = header_name;
+            if(b == ':')
+                p->h_state = header_value_start;
             break;
+        case header_value_start:
+            if(b == SP){
+                p->h_state = header_value;
+                break;
+            }
         case header_value:
             p->h_state = header_invalid;
+            if(b != '\0')
+                p->h_state = header_value;
             if(b == CR)
                 p->h_state = header_done_cr;
-            if(IS_URL_CHAR(b))
-                p->h_state = header_value;
             break;
         case header_done_cr:
             if(b == LF)
@@ -321,20 +333,60 @@ header_check_automata(const uint8_t b, struct http_parser* p) {
         case header_host_check:
                 p->h_state = host_case(b, p);
             break;
+        case header_content_length_consume_start:
+            if(b == SP){
+                p->h_state = header_content_length_consume;
+                break;
+            }
         case header_content_length_consume:
+            p->h_state = header_invalid;
             if(IS_NUM(b)){
                 p->request->header_content_length = (p->request->header_content_length)*10 + ASCII_TO_NUM(b);
+                p->h_state = header_content_length_consume;
+            }
+            if(b == CR)
+                    p->h_state = header_done_cr;
+            break;
+        case header_host_consume_start:
+            fprintf(stderr, "Coda cat %c", b);
+            if(b == SP){
+                p->h_state = header_host_consume;
+                break;
             }
         case header_host_consume:
+            //TODO get ipv6 host
             if (p->host_defined == false){
-                    //TODO
+                p->h_state = header_invalid;
+                if (IS_USERINFO_CHAR(b)) {
+                    if(p->i_host < MAX_FQDN-1){
+                        //defensive programming
+                        p->request->fqdn[p->i_host] = b;
+                        p->i_host++;
+                    }
+                    p->h_state = header_host_consume;
+                 }
+                 if(b == ':')
+                    p->h_state = header_port_consume;
+                 if(b == CR)
+                    p->h_state = header_done_cr;
+
             }
+            break;
+        case header_port_consume:
+            p->h_state = header_invalid;
+            if(IS_NUM(b)){
+                    p->request->dest_port = (p->request->dest_port)*10 + ASCII_TO_NUM(b);
+                    p->h_state = header_port_consume;
+            }
+            if(b == CR)
+                    p->h_state = header_done_cr;
+            break;
         case header_done:
         case header_invalid:
             break;
         default:
             fprintf(stderr, "unknown uri_state %d\n", p->uri_state);
-            abort();
+            abort(); // legal, seguro y gratuito
     }
     if(p->h_state == header_done){
         //si ya esta el header seguimos buscando
@@ -348,6 +400,7 @@ header_check_automata(const uint8_t b, struct http_parser* p) {
 
 static enum http_state
 header_check(const uint8_t b, struct http_parser* p) {
+    fprintf(stderr, "\n\ncoda cat says number %d\n\n", p->i);
     if(remaining_is_done(p))
         return http_error_header_too_long;
     
@@ -358,41 +411,49 @@ header_check(const uint8_t b, struct http_parser* p) {
 extern enum http_state http_parser_feed (struct http_parser *p, uint8_t b){
     switch(p->state) {
         case http_method:
+            fprintf(stderr, "http_method consumo %c",b);
              p->state = method_recon(b, p);
             break;
 
         case http_check_method:
+        fprintf(stderr, "http_check_method consumo %c",b);
             p->state = method_check(b,p);
             break;
 
         case http_absolute_uri:
+        fprintf(stderr, "http_absolute_uri consumo %c",b);
             p->state = uri_check(b,p);
             break;
         case http_version:
+        fprintf(stderr, "http_version consumo %c",b);
             p->state = version_check(b,p);
             break;
         case http_done_cr:
-            p->state = http_error_no_end;
+          /*  p->state = http_error_no_end;
             if(b == CR)
                 p->state = http_done_cr_cr;
-            break;
+            break;*/
         case http_done_cr_cr:
+        fprintf(stderr, "http_done_cr_cr consumo %c",b);
             p->state = http_error_no_end;
             if(b == CR)
                 p->state = http_done_cr_cr;
             if(b == LF)
-                p->state = (b == LF)? : http_headers_start;
+                p->state = http_headers_start;
             break;
         case http_headers_start:
+        fprintf(stderr, "http_headers_start consumo %d",b);
             p->h_state = header_init;
             if(b == CR){
                 p->state = http_body_start;
                 break;
             }
         case http_headers:
+        fprintf(stderr, "http_headers consumo %d",b);
             p->state = header_check(b,p);
             break;
         case http_body_start:
+        fprintf(stderr, "http_body_start consumo %d",b);
             p->state = http_error_malformed_request;
             if(b == LF){
                 p->body_found = true;
@@ -400,14 +461,17 @@ extern enum http_state http_parser_feed (struct http_parser *p, uint8_t b){
             }
             break;
         case http_body:
+        fprintf(stderr, "http_body consumo %d",b);
             //p->state = body_check(b,p);
             break;
         case http_done:
+        fprintf(stderr, "http_done consumo %d",b);
         case http_error_unsupported_method:
         case http_error_uri_too_long:
         case http_error_invalid_uri:
         case http_error_unsupported_version:
         case http_error_no_end:
+        case http_error_header_too_long:
         case http_error_malformed_request:
             break;
         default:

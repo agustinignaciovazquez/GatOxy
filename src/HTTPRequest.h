@@ -172,6 +172,7 @@ enum header_autom_state {
     header_init,
     header_name,
     header_value,
+    header_value_start,
     header_done_cr,
     header_invalid,
     header_done,
@@ -179,6 +180,9 @@ enum header_autom_state {
     header_host_check,
     header_content_length_consume,
     header_host_consume,
+    header_port_consume,
+    header_content_length_consume_start,
+    header_host_consume_start,
 };
 
 enum http_state {
@@ -213,7 +217,7 @@ struct http_request {
     char headers[MAX_HEADERS_LENGTH];
     in_port_t             dest_port;
     char header_host[MAX_FQDN];
-    uint8_t header_content_length;
+    uint16_t header_content_length;
 };
 
 struct http_parser {
@@ -222,16 +226,16 @@ struct http_parser {
   /** private only for automata uri check */
   enum uri_state uri_state;
   enum header_autom_state h_state;
-  uint8_t i_host;
-  uint8_t i_header;
+  uint16_t i_host;
+  uint16_t i_header;
   bool  host_defined;
   uint16_t content_length;
   bool body_found;
 
    /** cuantos bytes tenemos que leer*/
-   uint8_t n;
+   uint16_t n;
    /** cuantos bytes ya leimos */
-   uint8_t i;
+   uint16_t i;
 };
 
 /** inicializa el parser */
