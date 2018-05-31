@@ -34,6 +34,7 @@ void LOG_DEBUG(char *str) {
 }
 
 void LOG_ERROR(char *str) {
+  if(DEV_ENABLED == 0) return;
   char aux[1000];
   strcpy(aux,get_time());
   aux[strlen(aux)-1] = '\0';

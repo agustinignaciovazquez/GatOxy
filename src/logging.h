@@ -2,6 +2,7 @@
 #define LOGGER_H
 
 #define DEV_LOG "dev.log"
+#define DEV_ENABLED 1 // TODO usar TRUE FALSE defines
 #define PROD_LOG "prod.log"
 
 /**

@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include "logging.h"
+#include <assert.h>
 
 #include "HTTPRequest.h"
 
@@ -256,7 +258,7 @@ host_case(const uint8_t b, struct http_parser* p){
         return header_invalid;
     }else if((p->i_header == HOST_LEN) && (a==':')){
         return header_host_consume_start;
-    }else if((p->i_header == HOST_LEN)){
+    }else if(p->i_header == HOST_LEN){
         return header_name;
     }else if(a == HEADER_STRING[1][p->i_header]){
         return header_host_check;
@@ -273,7 +275,7 @@ content_length_case(const uint8_t b, struct http_parser* p ){
         return header_invalid;
     }else if((p->i_header == CONTENT_LENGTH_LEN) && (a==':')){
         return header_content_length_consume_start;
-    } else if((p->i_header == CONTENT_LENGTH_LEN)){
+    } else if(p->i_header == CONTENT_LENGTH_LEN){
         return header_name;
     }else if(a == HEADER_STRING[2][p->i_header]){
         return header_content_length_check;
@@ -609,5 +611,195 @@ errno_to_socks(const int e) {
             break;
     }
     return ret;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/* TESTS */
+#define FIXBUF(b, data) buffer_init(&(b), N(data), (data)); \
+                        buffer_write_adv(&(b), N(data))
+
+#define N(x) (sizeof(x)/sizeof(x[0]))
+void test_get_request_simple();
+void test_get_request_with_port();
+void test_invalid_method();
+void test_invalid_method_long();
+void test_invalid_version();
+void test_get_method_lower_case_fails();
+
+int main () {
+    int n, aux;
+
+
+    LOG_PRIORITY("Starting new test suit of HTTPRequest.c");
+    
+    test_invalid_method();
+    test_invalid_method_long();
+    test_invalid_version();
+    test_get_method_lower_case_fails();
+    test_get_request_simple();
+    test_get_request_with_port();
+    
+}
+
+void test_invalid_version() {
+    LOG_DEBUG("Test invalid version");
+    
+    
+    struct http_request request;
+    struct http_parser parser = {
+        .request = &request,
+    };
+    http_parser_init(&parser);
+    
+    uint8_t data[] = 
+    "GET / $%3\/1.3\r\n"
+    "Host: 127.0.0.1\r\n"
+    "\r\n";
+
+    buffer b;
+    FIXBUF(b, data);
+    bool errored = false;
+    enum http_state st = http_consume(&b, &parser, &errored);
+
+    assert(errored);
+    assert(st == http_error_unsupported_version);
+    LOG_DEBUG("Test invalid version succesfull");
+}
+
+void test_get_method_lower_case_fails() {
+    LOG_DEBUG("Test get lower case invalid");
+    
+    
+    struct http_request request;
+    struct http_parser parser = {
+        .request = &request,
+    };
+    http_parser_init(&parser);
+    
+    uint8_t data[] = 
+    "get ";
+
+    buffer b;
+    FIXBUF(b, data);
+    bool errored = false;
+    enum http_state st = http_consume(&b, &parser, &errored);
+
+    assert(errored);
+    assert(st == http_error_unsupported_method);
+    LOG_DEBUG("Test get lower case invalid succesfull");
+}
+
+void test_invalid_method_long() {
+    LOG_DEBUG("Test invalid method long");
+    
+    
+    struct http_request request;
+    struct http_parser parser = {
+        .request = &request,
+    };
+    http_parser_init(&parser);
+    
+    uint8_t data[] = 
+    "GETTer / HTTP/1.1\r\n"
+    "Host: 127.0.0.1\r\n"
+    "\r\n";
+
+    buffer b;
+    FIXBUF(b, data);
+    bool errored = false;
+    enum http_state st = http_consume(&b, &parser, &errored);
+
+    assert(errored);
+    assert(st == http_error_unsupported_method);
+    LOG_DEBUG("Test invalid method long succesfull");
+}
+
+void test_invalid_method() {
+    LOG_DEBUG("Test invalid method");
+    
+    
+    struct http_request request;
+    struct http_parser parser = {
+        .request = &request,
+    };
+    http_parser_init(&parser);
+    
+    uint8_t data[] = 
+    "HAT / HTTP/1.1\r\n"
+    "Host: 127.0.0.1\r\n"
+    "\r\n";
+
+    buffer b;
+    FIXBUF(b, data);
+    bool errored = false;
+    enum http_state st = http_consume(&b, &parser, &errored);
+
+    assert(errored);
+    assert(st == http_error_unsupported_method);
+    LOG_DEBUG("Test invalid method succesfull");
+}
+
+void test_get_request_simple() {
+    LOG_DEBUG("Test simple get request");
+    
+    
+    struct http_request request;
+    struct http_parser parser = {
+        .request = &request,
+    };
+    http_parser_init(&parser);
+    
+    uint8_t data[] = 
+    "GET / HTTP/1.1\r\n"
+    "Host: 127.0.0.1\r\n"
+    "\r\n";
+
+    buffer b;
+    FIXBUF(b, data);
+    bool errored = false;
+    enum http_state st = http_consume(&b, &parser, &errored);
+    
+    char dst[50];
+    sprintf(dst, "Admin Consume::: state end >%d<", st); 
+    LOG_DEBUG(dst);
+
+    assert(!errored);
+    assert(st == http_done);
+    assert(parser.request->method == http_get_method);
+    assert(strcmp(parser.i_host, "127.0.0.1")==0);
+    LOG_DEBUG("Test simple get request succesfull");
+}
+
+void test_get_request_with_port() {
+    LOG_DEBUG("Testing get request with port");
+    
+    
+    struct http_request request;
+    struct http_parser parser = {
+        .request = &request,
+    };
+    http_parser_init(&parser);
+    
+    uint8_t data[] = 
+    "GET / HTTP/1.1\r\n"
+    "Host: 127.0.0.1:8081\r\n"
+    "\r\n";
+
+    buffer b;
+    FIXBUF(b, data);
+    bool errored = false;
+    enum http_state st = http_consume(&b, &parser, &errored);
+    
+    char dst[50];
+    sprintf(dst, "Admin Consume::: state end >%d<", st); 
+    LOG_DEBUG(dst);
+
+    assert(!errored);
+    assert(st == http_done);
+    assert(parser.request->method == http_get_method);
+    assert(strcmp(parser.i_host, "127.0.0.1")==0);
+    assert(strcmp(parser.request->dest_port, "8081")==0);
+    LOG_DEBUG("Test get request with port succesfull");
 }
 

@@ -56,5 +56,8 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
+.DS_STORE
+*/.DS_STORE
+.idea
 
 # End of https://www.gitignore.io/api/c

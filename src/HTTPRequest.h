@@ -198,7 +198,7 @@ enum http_state {
     http_headers_start,
     http_headers,
     http_body_start,
-    http_body,
+    http_body, //10
     http_done,
     http_error_unsupported_method,
     http_error_uri_too_long,
