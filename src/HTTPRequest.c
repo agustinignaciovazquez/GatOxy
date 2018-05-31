@@ -580,6 +580,7 @@ http_marshall(buffer *b, struct http_request * req){
     buff[0] = SP;
     strcpy(buff+1, "HTTP/1.0");
     buff += version_len;
+    buff++;
     buff[0] = CR;
     buff[1] = LF;
     buffer_write_adv(b, method_len+uri_len+version_len+4);
