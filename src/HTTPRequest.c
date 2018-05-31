@@ -84,7 +84,7 @@ uri_check_automata(const uint8_t b, struct http_parser* p) {
      switch(p->uri_state) {
         case uri_init:
               p->host_defined = false;
-              p->request->dest_port = DEFAULT_HTTP_PORT;
+              p->request->dest_port = htons(DEFAULT_HTTP_PORT);
               p->i_host = 0;
               if (b == '/' || b == '*') {
                  p->uri_state =  uri_path;
@@ -359,36 +359,42 @@ header_check_automata(const uint8_t b, struct http_parser* p) {
         case header_host_consume:
             //TODO get ipv6 host
 
-            if (p->host_defined == false || 1 == 1){
+           
                 p->h_state = header_invalid;
                 if (IS_USERINFO_CHAR(b)) {
                     if(p->i_host < MAX_FQDN-1){
                         //defensive programming
-                        p->request->fqdn[p->i_host] = b;
-                        p->i_host++;
+                        if (p->host_defined == false){
+                            p->request->fqdn[p->i_host] = b;
+                            p->i_host++;
+                        }
                     }
                     p->h_state = header_host_consume;
                  }
                  if(b == ':'){
-                    p->request->dest_port = 0;
-                    p->request->fqdn[p->i_host] = '\0';
+                     if (p->host_defined == false){
+                         p->request->dest_port = 0;
+                        p->request->fqdn[p->i_host] = '\0';
+                    }
                     p->h_state = header_port_consume;
                 }
                  if(b == CR){
                     p->request->fqdn[p->i_host] = '\0';
                     p->h_state = header_done_cr;
                 }
-
-            }
             break;
         case header_port_consume:
             p->h_state = header_invalid;
             if(IS_NUM(b)){
-                    p->request->dest_port = (p->request->dest_port)*10 + ASCII_TO_NUM(b);
+                     if (p->host_defined == false){
+                        p->request->dest_port = (p->request->dest_port)*10 + ASCII_TO_NUM(b);
+                     }
                     p->h_state = header_port_consume;
             }
             if(b == CR){
-                p->request->dest_port = htons(p->request->dest_port);
+                 if (p->host_defined == false){
+                    p->request->dest_port = htons(p->request->dest_port);
+                 }
                 p->h_state = header_done_cr;
             }
             break;
