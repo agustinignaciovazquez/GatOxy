@@ -416,14 +416,14 @@ request_resolv_blocking(void *data) {
     char buff[7];
     snprintf(buff, sizeof(buff), "%d",
              ntohs(s->client.request.request.dest_port));
-
+fprintf(stderr, "\nresolving %s:%d\n",s->client.request.request.fqdn, ntohs(s->client.request.request.dest_port));
     getaddrinfo(s->client.request.request.fqdn, buff, &hints,
                &s->origin_resolution);
 
     selector_notify_block(key->s, key->fd);
 
     free(data);
-    fprintf(stderr, "resolving");
+    
     return 0;
 }
 
