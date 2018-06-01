@@ -4,7 +4,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <assert.h>
 #include "admin.h"
 
 static enum admin_state version_check(const uint8_t b, struct admin_parser* p);
@@ -234,37 +234,32 @@ admin_is_done(const enum admin_state st, bool *errored) {
                         buffer_write_adv(&(b), N(data))
 
 #define N(x) (sizeof(x)/sizeof(x[0]))
-int test_unsupported_version();
-int test_supported_version();
-int test_bad_password();
-int test_blank_password();
-int test_bad_method();
-int test_metrics();
-int test_logs();
-int test_with_transformer();
-int test_without_transformer();
+void test_unsupported_version();
+void test_supported_version();
+void test_bad_password();
+void test_blank_password();
+void test_bad_method();
+void test_metrics();
+void test_logs();
+void test_with_transformer();
+void test_without_transformer();
 
 int main () {
-	int n, aux;
-
 
 	LOG_PRIORITY("Starting new test suit of admin.c");
-	n = 0;
-	n += test_unsupported_version();
-	n += test_bad_password();
-	n += test_blank_password();
-	n += test_bad_method();
-	n += test_metrics();
-	n += test_logs();
-	n += test_with_transformer();
-	n += test_without_transformer();
 
-	exit(n);
+	test_unsupported_version();
+	test_bad_password();
+	test_blank_password();
+	test_bad_method();
+	test_metrics();
+	test_logs();
+	test_with_transformer();
+	test_without_transformer();
 }
 
-int test_unsupported_version() {
+void test_unsupported_version() {
 	LOG_DEBUG("Testing admin request with unsupported version");
-	int ans = 0; // OK
 	struct admin_request request;
 	struct admin_parser parser = {
 		.request = &request,
@@ -276,22 +271,12 @@ int test_unsupported_version() {
 	bool errored = false;
 	enum admin_state st = admin_consume(&b, &parser, &errored);
 
-
-	if (true != errored) {
-		ans++;
-		LOG_ERROR("error in version unsupported");
-	}
-	if (admin_error_unsupported_version != st) {
-		ans++;
-		LOG_ERROR("error in version unsupported: state trigger");
-	}
-
-	return ans;
+	assert(errored);
+	assert(st == admin_error_unsupported_version);
 }
 
-int test_bad_password() {
+void test_bad_password() {
 	LOG_DEBUG("Testing admin request with bad password but good version");
-	int ans = 0; // OK
 	struct admin_request request;
 	struct admin_parser parser = {
 		.request = &request,
@@ -303,22 +288,12 @@ int test_bad_password() {
 	bool errored = false;
 	enum admin_state st = admin_consume(&b, &parser, &errored);
 
-
-	if (true != errored) {
-		ans++;
-		LOG_ERROR("error in password invalid");
-	}
-	if (admin_error_bad_passcode != st) {
-		ans++;
-		LOG_ERROR("error in password invalid: state trigger");
-	}
-
-	return ans;
+	assert(errored);
+	assert(st == admin_error_bad_passcode);
 }
 
-int test_blank_password() {
+void test_blank_password() {
 	LOG_DEBUG("Testing admin request with blank password but good version");
-	int ans = 0; // OK
 	struct admin_request request;
 	struct admin_parser parser = {
 		.request = &request,
@@ -330,22 +305,12 @@ int test_blank_password() {
 	bool errored = false;
 	enum admin_state st = admin_consume(&b, &parser, &errored);
 
-
-	if (true != errored) {
-		ans++;
-		LOG_ERROR("error in blank password invalid");
-	}
-	if (admin_error_bad_passcode != st) {
-		ans++;
-		LOG_ERROR("error in blank password invalid: state trigger");
-	}
-
-	return ans;
+	assert(errored);
+	assert(st == admin_error_bad_passcode);
 }
 
-int test_bad_method() {
+void test_bad_method() {
 	LOG_DEBUG("Testing admin request with bad method but good version and password");
-	int ans = 0; // OK
 	struct admin_request request;
 	struct admin_parser parser = {
 		.request = &request,
@@ -357,22 +322,12 @@ int test_bad_method() {
 	bool errored = false;
 	enum admin_state st = admin_consume(&b, &parser, &errored);
 
-
-	if (true != errored) {
-		ans++;
-		LOG_ERROR("error in method invalid");
-	}
-	if (admin_error_bad_method != st) {
-		ans++;
-		LOG_ERROR("error in method invalid: state trigger");
-	}
-
-	return ans;
+	assert(errored);
+	assert(st == admin_error_bad_method);
 }
 
-int test_metrics() {
+void test_metrics() {
 	LOG_DEBUG("Testing admin with valid metrics request");
-	int ans = 0; // OK
 	struct admin_request request;
 	struct admin_parser parser = {
 		.request = &request,
@@ -384,22 +339,12 @@ int test_metrics() {
 	bool errored = false;
 	enum admin_state st = admin_consume(&b, &parser, &errored);
 
-
-	if (true != errored) {
-		ans++;
-		LOG_ERROR("error in metrics request");
-	}
-	if (admin_done != st) {
-		ans++;
-		LOG_ERROR("error in parsing metrics request: state trigger");
-	}
-
-	return ans;
+	assert(!errored); //TODO esto esta tirando error por algo
+	assert(st == admin_done);
 }
 
-int test_logs() {
+void test_logs() {
 	LOG_DEBUG("Testing admin with valid logs request");
-	int ans = 0; // OK
 	struct admin_request request;
 	struct admin_parser parser = {
 		.request = &request,
@@ -411,22 +356,12 @@ int test_logs() {
 	bool errored = false;
 	enum admin_state st = admin_consume(&b, &parser, &errored);
 
-
-	if (true != errored) {
-		ans++;
-		LOG_ERROR("error in logs request");
-	}
-	if (admin_done != st) {
-		ans++;
-		LOG_ERROR("error in parsing logs request: state trigger");
-	}
-
-	return ans;
+	assert(!errored);
+	assert(st == admin_done);
 }
 
-int test_with_transformer() {
+void test_with_transformer() {
 	LOG_DEBUG("Testing admin with valid enable tranform request");
-	int ans = 0; // OK
 	struct admin_request request;
 	struct admin_parser parser = {
 		.request = &request,
@@ -438,22 +373,12 @@ int test_with_transformer() {
 	bool errored = false;
 	enum admin_state st = admin_consume(&b, &parser, &errored);
 
-
-	if (true != errored) {
-		ans++;
-		LOG_ERROR("error in enable_transformer request");
-	}
-	if (admin_done != st) {
-		ans++;
-		LOG_ERROR("error in parsing enable_transformer request: state trigger");
-	}
-
-	return ans;
+	assert(!errored);
+	assert(st == admin_done);
 }
 
-int test_without_transformer() {
+void test_without_transformer() {
 	LOG_DEBUG("Testing admin with valid disable_transformer request");
-	int ans = 0; // OK
 	struct admin_request request;
 	struct admin_parser parser = {
 		.request = &request,
@@ -465,17 +390,8 @@ int test_without_transformer() {
 	bool errored = false;
 	enum admin_state st = admin_consume(&b, &parser, &errored);
 
-
-	if (true != errored) {
-		ans++;
-		LOG_ERROR("error in disable_transformer request");
-	}
-	if (admin_done != st) {
-		ans++;
-		LOG_ERROR("error in parsing disable_transformer request: state trigger");
-	}
-
-	return ans;
+	assert(!errored);
+	assert(st == admin_done);
 }
 
 
