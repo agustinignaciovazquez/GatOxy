@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "buffer.h"
-#include "../to_implement/logging.h"
+#include "logging.h"
 
 #include <netinet/in.h>
 #include  <string.h>
