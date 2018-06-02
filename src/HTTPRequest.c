@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include "logging.h"
 #include <assert.h>
+#include <errno.h>
 
 #include "HTTPRequest.h"
 
@@ -375,13 +376,15 @@ header_check_automata(const uint8_t b, struct http_parser* p) {
                  }
                  if(b == ':'){
                      if (p->host_defined == false){
-                         p->request->dest_port = 0;
+                        p->request->dest_port = 0;
                         p->request->fqdn[p->i_host] = '\0';
                     }
                     p->h_state = header_port_consume;
                 }
                  if(b == CR){
-                    p->request->fqdn[p->i_host] = '\0';
+                    if (p->host_defined == false){
+                        p->request->fqdn[p->i_host] = '\0';
+                    }    
                     p->h_state = header_done_cr;
                 }
             break;
@@ -475,11 +478,12 @@ extern enum http_state http_parser_feed (struct http_parser *p, uint8_t b){
         //fprintf(stderr, "http_body_start consumo %d",b);
             p->state = http_error_malformed_request;
             if(b == LF){
-                p->body_found = true;
+                
                 p->state = http_body;
             }
             break;
         case http_body:
+            p->body_found = true;
         //fprintf(stderr, "http_body consumo %d",b);
             //p->state = body_check(b,p);
             break;
@@ -567,11 +571,13 @@ extern int
 http_marshall(buffer *b, struct http_request * req){
     size_t n;
     uint8_t *buff = buffer_write_ptr(b, &n);
-    size_t method_len, uri_len, version_len;
+    size_t method_len, uri_len, version_len, headers_len, total_len;
     method_len = strlen(METHOD_STRING[req->method]);
+    headers_len = strlen(req->headers);
     uri_len = strlen(req->absolute_uri);
     version_len = strlen("HTTP/1.0");
-    if(n < method_len+uri_len+version_len+4) {
+    total_len = method_len+uri_len+version_len+headers_len+4;
+    if(n < total_len) {
         return -1;
     }
     strcpy(buff, METHOD_STRING[req->method]);
@@ -585,10 +591,13 @@ http_marshall(buffer *b, struct http_request * req){
     buff++;
     buff[0] = CR;
     buff[1] = LF;
-    buffer_write_adv(b, method_len+uri_len+version_len+4);
+    buff++;
+    strcpy(buff+1, req->headers);
+    buff += headers_len;
+    buffer_write_adv(b, total_len);
     return method_len+uri_len+version_len+4;
 }
-#include <errno.h>
+
 
 enum http_response_status
 errno_to_socks(const int e) {
@@ -615,7 +624,7 @@ errno_to_socks(const int e) {
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-/* TESTS */
+/* TESTS *//*
 #define FIXBUF(b, data) buffer_init(&(b), N(data), (data)); \
                         buffer_write_adv(&(b), N(data))
 
@@ -653,7 +662,7 @@ void test_invalid_version() {
     http_parser_init(&parser);
     
     uint8_t data[] = 
-    "GET / $%3\/1.3\r\n"
+    "GET / $%3/1.3\r\n"
     "Host: 127.0.0.1\r\n"
     "\r\n";
 
@@ -801,5 +810,5 @@ void test_get_request_with_port() {
     assert(strcmp(parser.i_host, "127.0.0.1")==0);
     assert(strcmp(parser.request->dest_port, "8081")==0);
     LOG_DEBUG("Test get request with port succesfull");
-}
+}*/
 

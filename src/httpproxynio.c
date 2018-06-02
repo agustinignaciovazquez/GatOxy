@@ -15,8 +15,12 @@
 #include "stm.h"
 #include "httpproxynio.h"
 #include "netutils.h"
+#include "body_transformation.h"
+#include "buffer_size.h"
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
+void
+compute_transformation_interests(struct selector_key *key);
 //#define MSG_NOSIGNAL SO_NOSIGPIPE //sacar en final
 enum socks_v5state {
 
@@ -60,7 +64,6 @@ enum socks_v5state {
      */
     REQUEST_CONNECTING,
 
-    REQUEST_SEND,
 
     /**
      * envía la respuesta del `request' al cliente.
@@ -76,7 +79,17 @@ enum socks_v5state {
      *   - ERROR        ante I/O error
      */
     REQUEST_WRITE,
-
+    /**
+     * Copia bytes entre client_fd y origin_fd.
+     *
+     * Intereses: (tanto para client_fd y origin_fd)
+     *   - OP_READ  si hay espacio para escribir en el buffer de lectura
+     *   - OP_WRITE si hay bytes para leer en el buffer de escritura
+     *
+     * Transicion:
+     *   - DONE     cuando no queda nada mas por copiar.
+     */
+    COPY,
     // estados terminales
     DONE,
     ERROR,
@@ -103,12 +116,43 @@ struct request_st {
     int                       *origin_fd;
 };
 
+struct transformation_data {
+
+    int inputTransformation[2];
+    int outputTransformation[2];
+
+    char * prog;
+
+    bool input ,output;
+
+    buffer  input_buffer;
+    buffer  output_buffer;
+
+    uint8_t  raw_input_buffer[50];
+    uint8_t  raw_output_buffer[50];
+};
+
+
 /** usado por REQUEST_CONNECTING */
 struct connecting {
     buffer     *wb;
     const int  *client_fd;
     int        *origin_fd;
     enum http_response_status *status;
+};
+
+/** usado por COPY */
+struct copy {
+    /** el otro file descriptor */
+    int         *fd;
+    /** el buffer que se utiliza para hacer la copia */
+    buffer      *rb, *wb;
+    /** ¿cerramos ya la escritura o la lectura? */
+    fd_interest duplex;
+
+    int        client;
+
+    struct copy *other;
 };
 
 struct socks5 {
@@ -129,20 +173,28 @@ struct socks5 {
     int                           origin_fd;
 
 
+    buffer                   *headers_copy;
+
+    uint8_t  * raw_headers_buffer;
+
+    struct transformation_data * transformation;
+
     /** maquinas de estados */
     struct state_machine          stm;
 
     /** estados para el client_fd */
     union {
         struct request_st         request;
+        struct copy               copy;
     } client;
     /** estados para el origin_fd */
     union {
         struct connecting         conn;
+        struct copy               copy;
     } orig;
 
     /** buffers para ser usados read_buffer, write_buffer.*/
-    uint8_t raw_buff_a[2048], raw_buff_b[2048];
+    uint8_t * raw_buff_a, * raw_buff_b;
     buffer read_buffer, write_buffer;
     
     /** cantidad de referencias a este objeto. si es uno se debe destruir */
@@ -180,18 +232,39 @@ socks5_new(int client_fd) {
         goto finally;
     }
     memset(ret, 0x00, sizeof(*ret));
+    
 
     ret->origin_fd       = -1;
     ret->client_fd       = client_fd;
     ret->client_addr_len = sizeof(ret->client_addr);
 
+
+    ret->transformation = NULL;
+
+    int buffer_size = get_buffer_size();
+    ret->headers_copy = malloc(sizeof(struct buffer));
+    ret->raw_headers_buffer = malloc(1024 * sizeof(uint8_t));
+    buffer_init(ret->headers_copy, 1024,ret->raw_headers_buffer);
+
+    ret->raw_buff_a = malloc(buffer_size);
+    ret->raw_buff_b = malloc(buffer_size);
+
+
+    if(ret->raw_buff_a  == NULL || ret->raw_buff_b == NULL)
+    {
+        ret = NULL;
+        goto finally;
+    }
+
     ret->stm    .initial   = REQUEST_READ;
     ret->stm    .max_state = ERROR;
     ret->stm    .states    = socks5_describe_states();
+
     stm_init(&ret->stm);
 
-    buffer_init(&ret->read_buffer,  N(ret->raw_buff_a), ret->raw_buff_a);
-    buffer_init(&ret->write_buffer, N(ret->raw_buff_b), ret->raw_buff_b);
+
+    buffer_init(&ret->read_buffer,  buffer_size, ret->raw_buff_a);
+    buffer_init(&ret->write_buffer, buffer_size, ret->raw_buff_b);
 
     ret->references = 1;
 finally:
@@ -249,12 +322,19 @@ static void socksv5_read   (struct selector_key *key);
 static void socksv5_write  (struct selector_key *key);
 static void socksv5_block  (struct selector_key *key);
 static void socksv5_close  (struct selector_key *key);
+static void transformation_read (struct selector_key *key);
+static void transformation_write (struct selector_key *key);
 static const struct fd_handler socks5_handler = {
     .handle_read   = socksv5_read,
     .handle_write  = socksv5_write,
     .handle_close  = socksv5_close,
     .handle_block  = socksv5_block,
 };
+static const struct fd_handler transformation_handler = {
+        .handle_read   = transformation_read,
+        .handle_write  = transformation_write,
+};
+
 /** Intenta aceptar la nueva conexión entrante*/
 void
 socksv5_passive_accept(struct selector_key *key) {
@@ -275,6 +355,7 @@ socksv5_passive_accept(struct selector_key *key) {
         // sin un estado, nos es imposible manejaro.
         // tal vez deberiamos apagar accept() hasta que detectemos
         // que se liberó alguna conexión.
+        printf("Connection failed \n");
         goto fail;
     }
     memcpy(&state->client_addr, &client_addr, client_addr_len);
@@ -282,6 +363,7 @@ socksv5_passive_accept(struct selector_key *key) {
 
     if(SELECTOR_SUCCESS != selector_register(key->s, client, &socks5_handler,
                                               OP_READ, state)) {
+        printf("Selector is full \n");
         goto fail;
     }
     return ;
@@ -311,6 +393,7 @@ request_init(const unsigned state, struct selector_key *key) {
     d->origin_addr     = &ATTACHMENT(key)->origin_addr;
     d->origin_addr_len = &ATTACHMENT(key)->origin_addr_len;
     d->origin_domain   = &ATTACHMENT(key)->origin_domain;
+
 }
 
 static unsigned
@@ -416,7 +499,7 @@ request_resolv_blocking(void *data) {
     char buff[7];
     snprintf(buff, sizeof(buff), "%d",
              ntohs(s->client.request.request.dest_port));
-fprintf(stderr, "\nresolving %s:%d\n",s->client.request.request.fqdn, s->client.request.request.dest_port);
+fprintf(stderr, "\nresolving %s:%s\n",s->client.request.request.fqdn, buff);
     getaddrinfo(s->client.request.request.fqdn, buff, &hints,
                &s->origin_resolution);
 
@@ -547,16 +630,17 @@ request_connecting(struct selector_key *key) {
         }
     }
 
-    if(-1 == http_marshall(d->wb, &(d1->request))) {
+    if(-1 == http_marshall(ATTACHMENT(key)->headers_copy, &(d1->request))) {
         *d->status = status_general_proxy_server_failure;
         abort(); // el buffer tiene que ser mas grande en la variable
     }
 
     selector_status s = 0;
-    s |= selector_set_interest_key(key,                   OP_NOOP);
+    s |= selector_set_interest    (key->s, *d->client_fd, OP_WRITE);
+    s |= selector_set_interest_key(key,                   OP_READ);
     s |= selector_set_interest    (key->s, *d->origin_fd, OP_WRITE);
     fprintf(stderr, "conectando");
-    return SELECTOR_SUCCESS == s ? REQUEST_SEND : ERROR;
+    return SELECTOR_SUCCESS == s ? COPY : ERROR;
 }
 /*
 void
@@ -580,52 +664,17 @@ log_request(const enum http_response_status status,
     fprintf(stdout, "%s\tstatus=%d\n", cbuff, status);
 }*/
 
-static unsigned
-request_send(struct selector_key *key) {
-    struct request_st * d = &ATTACHMENT(key)->client.request;
 
-    unsigned  ret       = REQUEST_SEND;
-      buffer *b         = d->wb;
-     uint8_t *ptr;
-      size_t  count;
-     ssize_t  n;
-
-    ptr = buffer_read_ptr(b, &count);
-    n = send(key->fd, ptr, count, MSG_NOSIGNAL);
-    if(n == -1) {
-        ret = ERROR;
-    } else {
-        buffer_read_adv(b, n);
-
-        if(!buffer_can_read(b)) {
-            if(d->status == status_succeeded) {
-                ret = REQUEST_WRITE;
-                selector_set_interest    (key->s,  *d->client_fd, OP_WRITE);
-                selector_set_interest    (key->s,  *d->origin_fd, OP_NOOP);
-            } else {
-                ret = DONE;
-                selector_set_interest    (key->s,  *d->client_fd, OP_NOOP);
-                if(-1 != *d->origin_fd) {
-                    selector_set_interest    (key->s,  *d->origin_fd, OP_NOOP);
-                }
-            }
-        }
-    }
-fprintf(stderr, "sending");
-  //  log_request(d->status, (const struct sockaddr *)&ATTACHMENT(key)->client_addr,
-    //                       (const struct sockaddr *)&ATTACHMENT(key)->origin_addr);
-    return ret;
-}
 /** escribe todos los bytes de la respuesta al mensaje `request' */
 static unsigned
 request_write(struct selector_key *key) {
     struct request_st * d = &ATTACHMENT(key)->client.request;
 
     unsigned  ret       = REQUEST_WRITE;
-      buffer *b         = d->wb;
-     uint8_t *ptr;
-      size_t  count;
-     ssize_t  n;
+    buffer *b         = d->wb;
+    uint8_t *ptr;
+    size_t  count;
+    ssize_t  n;
 
     ptr = buffer_read_ptr(b, &count);
     n = send(key->fd, ptr, count, MSG_NOSIGNAL);
@@ -637,7 +686,7 @@ request_write(struct selector_key *key) {
         if(!buffer_can_read(b)) {
             if(d->status == status_succeeded) {
                 ret = DONE;
-                selector_set_interest    (key->s,  *d->client_fd, OP_READ);
+                selector_set_interest    (key->s,  *d->client_fd, OP_NOOP);
                 selector_set_interest    (key->s,  *d->origin_fd, OP_NOOP);
             } else {
                 ret = DONE;
@@ -654,9 +703,192 @@ request_write(struct selector_key *key) {
     return ret;
 }
 
+static fd_interest
+copy_compute_interests(fd_selector s, struct copy* d);
+////////////////////////////////////////////////////////////////////////////////
+// COPY
+////////////////////////////////////////////////////////////////////////////////
+
+static void
+copy_init(const unsigned state, struct selector_key *key) {
+    struct copy * d = &ATTACHMENT(key)->client.copy;
+    buffer * buff = ATTACHMENT(key)->headers_copy;
+    d->fd        = &ATTACHMENT(key)->client_fd;
+    d->rb        = ATTACHMENT(key)->headers_copy;
+    d->wb        = &ATTACHMENT(key)->write_buffer;//->write_buffer;
+    d->duplex    = OP_READ | OP_WRITE;
+    d->client    = true;
+    d->other     = &ATTACHMENT(key)->orig.copy;
+
+
+    d = &ATTACHMENT(key)->orig.copy;
+    d->client   = false;
+    d->fd       = &ATTACHMENT(key)->origin_fd;
+    d->rb       = &ATTACHMENT(key)->write_buffer;
+    d->wb       = ATTACHMENT(key)->headers_copy;
+    d->duplex   = OP_READ | OP_WRITE;
+    d->other    = &ATTACHMENT(key)->client.copy;
+
+}
+
+/**
+ * Computa los intereses en base a la disponiblidad de los buffer.
+ * La variable duplex nos permite saber si alguna vía ya fue cerrada.
+ * Arrancá OP_READ | OP_WRITE.
+ */
+static fd_interest
+copy_compute_interests(fd_selector s, struct copy* d) {
+    fd_interest ret = OP_NOOP;
+    if ((d->duplex & OP_READ)  && buffer_can_write(d->rb)) {
+        ret |= OP_READ;
+    }
+    if ((d->duplex & OP_WRITE) && buffer_can_read (d->wb)) {
+        ret |= OP_WRITE;
+    }
+    selector_status status = selector_set_interest(s, *d->fd, ret);
+    if(SELECTOR_SUCCESS != status) {
+        abort();
+    }
+    return ret;
+}
+
+/** elige la estructura de copia correcta de cada fd (origin o client) */
+static struct copy *
+copy_ptr(struct selector_key *key) {
+    struct copy * d = &ATTACHMENT(key)->client.copy;
+
+    if(*d->fd == key->fd) {
+        // ok
+    } else {
+        d = d->other;
+    }
+    return  d;
+}
+
+bool transform = false;
+
+/** lee bytes de un socket y los encola para ser escritos en otro socket */
+static unsigned
+copy_r(struct selector_key *key) {
+    struct copy * d = copy_ptr(key);
+
+    assert(*d->fd == key->fd);
+
+    size_t size;
+    ssize_t n;
+
+    unsigned ret = COPY;
+
+
+    if(!d->client)
+    {
+        if(transform && ATTACHMENT(key)->transformation == NULL) {
+            struct transformation_data *t = malloc(sizeof(struct transformation_data));
+
+            ATTACHMENT(key)->transformation = t;
+
+            t->prog = "sed s/o/0/g";
+
+            buffer_init(&(t->input_buffer), 50, t->raw_input_buffer);
+            buffer_init(&(t->output_buffer), 50, t->raw_output_buffer);
+
+            d->rb = &t->input_buffer;
+            d->other->wb = &t->output_buffer;
+            selector_status s = SELECTOR_SUCCESS;
+
+            t->inputTransformation[READ] = -1;
+            t->inputTransformation[WRITE] = -1;
+
+            t->outputTransformation[READ] = -1;
+            t->outputTransformation[WRITE] = -1;
+            t->input = true;
+            t->output = true;
+
+            int res = process_with_external_program(t->prog, t->inputTransformation, t->outputTransformation);
+
+
+            s |= selector_register(key->s, t->inputTransformation[WRITE], &transformation_handler, OP_WRITE, key->data);
+            s |= selector_register(key->s, t->outputTransformation[READ], &transformation_handler, OP_READ, key->data);
+
+
+            if (s != SELECTOR_SUCCESS) {
+                printf("HUBO UN ERROR");
+            }
+        }
+    }
+    buffer* b    = d->rb;
+    uint8_t *ptr = buffer_write_ptr(b, &size);
+
+    n = recv(key->fd, ptr, size, 0);
+    if(n <= 0) {
+        if(!d->client && ATTACHMENT(key)->transformation != NULL )
+        {
+            if(!buffer_can_read(b))
+                close(ATTACHMENT(key)->transformation->inputTransformation[WRITE]);
+            shutdown(*d->fd, SHUT_RD);
+            d->duplex &= ~OP_READ;
+        }else {
+            d->duplex = OP_NOOP;
+            return DONE;
+        }
+    } else {
+        buffer_write_adv(b, n);
+    }
+    copy_compute_interests(key->s, d);
+    copy_compute_interests(key->s, d->other);
+    if(ATTACHMENT(key)->transformation != NULL)
+    {
+        compute_transformation_interests(key);
+    }
+    if(d->duplex == OP_NOOP) {
+        ret = DONE;
+    }
+    return ret;
+}
+
+/** escribe bytes encolados */
+static unsigned
+copy_w(struct selector_key *key) {
+    struct copy * d = copy_ptr(key);
+
+    assert(*d->fd == key->fd);
+    size_t size;
+    ssize_t n;
+    buffer* b = d->wb;
+    unsigned ret = COPY;
+
+    uint8_t *ptr = buffer_read_ptr(b, &size);
+    n = send(key->fd, ptr, size, 0);
+
+    if(n == -1) {
+        shutdown(*d->fd, SHUT_WR);
+        d->duplex &= ~OP_WRITE;
+        if(*d->other->fd != -1) {
+            shutdown(*d->other->fd, SHUT_RD);
+            d->other->duplex &= ~OP_READ;
+        }
+    } else {
+        buffer_read_adv(b, n);
+        if(d->client && ATTACHMENT(key)->transformation != NULL)
+        {
+            if(!buffer_can_read(b) && ATTACHMENT(key)->transformation->outputTransformation[READ] == -1)
+            {
+                  d->duplex = OP_NOOP;
+            }
+            compute_transformation_interests(key);
+        }
+    }
+    copy_compute_interests(key->s, d);
+    copy_compute_interests(key->s, d->other);
+
+    if(d->duplex == OP_NOOP) {
+        ret = DONE;
+    }
+    return ret;
+}
 /** definición de handlers para cada estado */
 static const struct state_definition client_statbl[] = {
-    {
+   {
         .state            = REQUEST_READ,
         .on_arrival       = request_init,
         .on_departure     = request_read_close,
@@ -669,11 +901,13 @@ static const struct state_definition client_statbl[] = {
         .on_arrival       = request_connecting_init,
         .on_write_ready   = request_connecting,
     },{
-        .state            = REQUEST_SEND,
-        .on_write_ready   = request_send,
-    },{
         .state            = REQUEST_WRITE,
         .on_write_ready   = request_write,
+    }, {
+        .state            = COPY,
+        .on_arrival       = copy_init,
+        .on_read_ready    = copy_r,
+        .on_write_ready   = copy_w,
     }, {
         .state            = DONE,
 
@@ -741,4 +975,115 @@ socksv5_done(struct selector_key* key) {
             close(fds[i]);
         }
     }
+    struct transformation_data * t = ATTACHMENT(key)->transformation;
+    if(t != NULL)
+    {
+        if(t->outputTransformation[READ] != -1) {
+            close(t->outputTransformation[READ]);
+            selector_unregister_fd(key->s,t->outputTransformation[READ] );
+        }
+        if(t->inputTransformation[WRITE] != -1) {
+            close(t->inputTransformation[WRITE]);
+            selector_unregister_fd(key->s,t->inputTransformation[WRITE] );
+        }
+    }
+}
+
+void
+compute_transformation_interests(struct selector_key *key) {
+
+    struct transformation_data * t = (ATTACHMENT(key)->transformation);
+    fd_interest input = OP_NOOP;
+    fd_interest output = OP_NOOP;
+
+    if(buffer_can_read(&t->input_buffer) &&  t->inputTransformation[WRITE] != -1)
+    {
+        input |= OP_WRITE;
+    }
+    if(buffer_can_write(&t->output_buffer) && t->outputTransformation[READ] != -1)
+    {
+        output |= OP_READ;
+    }
+
+    selector_status  s = SELECTOR_SUCCESS;
+    if( t->inputTransformation[WRITE] != -1)
+        s |= selector_set_interest(key->s, t->inputTransformation[WRITE],input);
+    if(  t->outputTransformation[READ] != -1)
+        s |= selector_set_interest(key->s, t->outputTransformation[READ], output);
+
+    if(s != SELECTOR_SUCCESS)
+    {
+        printf("ERRORR MUY GRAVE");
+    }
+
+}
+
+//transformation handlers
+
+static void transformation_read (struct selector_key *key)
+{
+    struct transformation_data * t = (ATTACHMENT(key)->transformation);
+    size_t n;
+    buffer * b = &(t->output_buffer);
+    uint8_t * ptr = buffer_write_ptr(b, &n);
+
+    t = (ATTACHMENT(key)->transformation);
+    int count = read(key->fd,ptr, n );
+    if(count <= 0){
+        t->outputTransformation[READ] = -1;
+        selector_unregister_fd(key->s, key->fd);
+        if(count == 0)close(key->fd);
+        if(!buffer_can_read(b))
+        {
+            shutdown(*ATTACHMENT(key)->client.copy.fd, SHUT_WR);
+            ATTACHMENT(key)->client.copy.duplex = OP_NOOP;
+        }
+
+    }else{
+            buffer_write_adv(b, count);
+            compute_transformation_interests(key);
+    }
+
+    copy_compute_interests(key->s, &ATTACHMENT(key)->client.copy);
+    copy_compute_interests(key->s , ATTACHMENT(key)->client.copy.other);
+
+    if(ATTACHMENT(key)->client.copy.duplex == OP_NOOP){
+        socksv5_done(key);
+    }
+
+
+}
+static void transformation_write (struct selector_key *key)
+{
+    struct transformation_data * t =(ATTACHMENT(key)->transformation);
+    size_t n;
+
+    buffer * b = &(t->input_buffer);
+
+    uint8_t * ptr  = buffer_read_ptr(b, &n);
+
+    t = (ATTACHMENT(key)->transformation);
+
+
+    int count = write(key->fd,ptr, n );
+
+    if(count <= 0)
+    {
+        t->inputTransformation[WRITE] = -1;
+        selector_unregister_fd(key->s, key->fd);
+        if(count == 0)close(key->fd);
+    }else{
+            buffer_read_adv(b, count);
+        compute_transformation_interests(key);
+        if((ATTACHMENT(key)->orig.copy.duplex && OP_READ) != OP_READ && !buffer_can_read(b))
+        {
+            t->inputTransformation[WRITE] = -1;
+            selector_unregister_fd(key->s, key->fd);
+            close(key->fd);
+        }
+
+    }
+
+    copy_compute_interests(key->s, &ATTACHMENT(key)->client.copy);
+    copy_compute_interests(key->s , ATTACHMENT(key)->client.copy.other);
 }
