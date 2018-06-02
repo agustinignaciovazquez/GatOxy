@@ -776,7 +776,6 @@ void test_get_request_simple() {
     assert(!errored);
     assert(st == http_done);
     assert(parser.request->method == http_get_method);
-    assert(strcmp(parser.i_host, "127.0.0.1")==0);
     LOG_DEBUG("Test simple get request succesfull");
 }
 
@@ -807,7 +806,6 @@ void test_get_request_with_port() {
     assert(!errored);
     assert(st == http_done);
     assert(parser.request->method == http_get_method);
-    assert(strcmp(parser.i_host, "127.0.0.1")==0);
     assert(strcmp(parser.request->dest_port, "8081")==0);
     LOG_DEBUG("Test get request with port succesfull");
 }*/
