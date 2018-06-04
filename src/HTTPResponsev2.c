@@ -375,7 +375,7 @@ extern enum http_res_state http_res_parser_feed (struct http_res_parser *p, uint
 }
 
 extern bool 
-http_is_done(const enum http_res_state state, bool *errored) {
+http_res_is_done(const enum http_res_state state, bool *errored) {
     bool ret;
     switch (state) {
         case http_error_unsupported_encoding:
@@ -403,7 +403,7 @@ http_is_done(const enum http_res_state state, bool *errored) {
 
 /* TODO complete */
 extern const char *
-http_error(const struct http_res_parser *p) {
+http_res_error(const struct http_res_parser *p) {
     char *ret;
     switch (p->state) {
         //TODO COMPLETE THIS WITH CORRESPONDENT STRINGS
@@ -428,13 +428,13 @@ extern void http_res_parser_close(struct http_res_parser *p) {
 }
 
 extern enum http_res_state
-http_consume(buffer *b, struct http_res_parser *p, bool *errored) {
+http_res_consume(buffer *b, struct http_res_parser *p, bool *errored) {
     enum http_res_state st = p->state;
 
     while(buffer_can_read(b)) { // si ya estamos por leer body no consumimos mas y se lo pasamos directamente al origin!
         const uint8_t c = buffer_read(b);
         st = http_res_parser_feed(p, c);
-        if (http_is_done(st, errored) || p->body_found == true){
+        if (http_res_is_done(st, errored) || p->body_found == true){
             break;
         }
     }
@@ -467,9 +467,9 @@ http_consume(buffer *b, struct http_res_parser *p, bool *errored) {
 //     return method_len+uri_len+version_len+4;
 // }
 
-#include <errno.h>
+//#include <errno.h>
 
-enum http_response_status
+/*enum http_response_status
 errno_to_socks(const int e) {
     enum http_response_status ret = status_general_proxy_server_failure;
     switch (e) {
@@ -491,11 +491,11 @@ errno_to_socks(const int e) {
     }
     return ret;
 }
-
+*/
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* TESTS */
-#define FIXBUF(b, data) buffer_init(&(b), N(data), (data)); \
+/*#define FIXBUF(b, data) buffer_init(&(b), N(data), (data)); 
                         buffer_write_adv(&(b), N(data))
 
 #define N(x) (sizeof(x)/sizeof(x[0]))
@@ -645,7 +645,7 @@ void test_response_simple() {
     bool errored = false;
     enum http_res_state st = http_consume(&b, &parser, &errored);
     
-    /*ASK*/
+    /*ASK*//*
     char dst[50];
     sprintf(dst, "Admin Consume::: state end >%d<", st); 
     LOG_DEBUG(dst);
@@ -786,3 +786,4 @@ void test_response_with_content_and_transfer() {
     LOG_DEBUG("Test response with content and transfer succesfull");
     printf("RESPONSE CONTENT AND TRANSFER OK\n");
 }
+*/

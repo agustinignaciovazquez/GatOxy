@@ -263,14 +263,14 @@ http_consume(buffer *b, struct http_res_parser *p, bool *errored);
  * En caso de haber terminado permite tambien saber si se debe a un error
  */
 bool 
-http_is_done(const enum http_res_state state, bool *errored);
+http_res_is_done(const enum http_res_state state, bool *errored);
 
 /**
  * En caso de que se haya llegado a un estado de error, permite obtener una
  * representación textual que describe el problema
  */
 extern const char *
-http_error(const struct http_res_parser *p);
+http_res_error(const struct http_res_parser *p);
 
 
 /** libera recursos internos del parser */
@@ -283,7 +283,7 @@ void http_res_parser_close(struct http_res_parser *p);
  * espacio suficiente.
  */
 int
-http_marshall(buffer *b, struct http_response * res);
+http_res_marshall(buffer *b, struct http_response * res);
 
 
 /** convierte a errno en socks_response_status */

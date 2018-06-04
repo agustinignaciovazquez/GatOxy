@@ -560,7 +560,8 @@ http_consume(buffer *b, struct http_parser *p, bool *errored) {
     while(buffer_can_read(b)) { // si ya estamos por leer body no consumimos mas y se lo pasamos directamente al origin!
         const uint8_t c = buffer_read(b);
         st = http_parser_feed(p, c);
-        if (http_is_done(st, errored) || p->body_found == true){
+        if (http_is_done(st, errored)){
+            fprintf(stderr, "listo papu" );
             break;
         }
     }
@@ -575,27 +576,30 @@ http_marshall(buffer *b, struct http_request * req){
     method_len = strlen(METHOD_STRING[req->method]);
     headers_len = strlen(req->headers);
     uri_len = strlen(req->absolute_uri);
-    version_len = strlen("HTTP/1.0");
-    total_len = method_len+uri_len+version_len+headers_len+4;
+    version_len = strlen(VERSION_STRING);
+    total_len = method_len+uri_len+version_len+headers_len+6;
     if(n < total_len) {
         return -1;
     }
     strcpy(buff, METHOD_STRING[req->method]);
     buff += method_len;
     buff[0] = SP;
-    strcpy(buff+1, req->absolute_uri);
+    buff++;
+    strcpy(buff, req->absolute_uri);
     buff += uri_len;
     buff[0] = SP;
-    strcpy(buff+1, "HTTP/1.0");
+    buff++;
+    strcpy(buff, VERSION_STRING);
     buff += version_len;
-    buff++;
-    buff[0] = CR;
-    buff[1] = LF;
-    buff++;
-    strcpy(buff+1, req->headers);
+    buff[0] = req->http_version;
+    buff[1] = CR;
+    buff[2] = LF;
+    buff+=3;
+    strcpy(buff, req->headers);
     buff += headers_len;
+    buff[0] = LF;
     buffer_write_adv(b, total_len);
-    return method_len+uri_len+version_len+4;
+    return total_len-1;
 }
 
 
