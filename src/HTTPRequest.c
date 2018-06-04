@@ -587,8 +587,8 @@ http_marshall(buffer *b, struct http_request * req){
     buff++;
     strcpy(buff, req->absolute_uri);
     buff += uri_len;
-    buff[0] = SP;
-    buff++;
+    //buff[0] = SP;
+    //buff++;
     strcpy(buff, VERSION_STRING);
     buff += version_len;
     buff[0] = req->http_version;
@@ -597,9 +597,10 @@ http_marshall(buffer *b, struct http_request * req){
     buff+=3;
     strcpy(buff, req->headers);
     buff += headers_len;
-    buff[0] = LF;
-    buffer_write_adv(b, total_len);
-    return total_len-1;
+    buff[0] = CR;
+    buff[1] = LF;
+	buffer_write_adv(b, total_len);
+    return total_len;
 }
 
 
