@@ -24,8 +24,8 @@ remaining_is_done(struct http_res_parser* p) {
 extern void http_res_parser_init (struct http_res_parser *p){
     p->state     = http_version;
     p->content_length = -1;
-    p->n_encodings = 0;
-    p->encoding_flag = false;
+    p->transfer_encodings = 0;
+    p->charset_flag = false;
 
     memset(p->response, 0, sizeof(*(p->response)));
     remaining_set(p, VERSION_LEN);
@@ -84,6 +84,10 @@ version_check(const uint8_t b, struct http_res_parser* p) {
    return http_error_unsupported_version;
 }
 
+
+/* Chequea si es el header Content-Length, si no, chequea si es Content-Type
+    si no, chequea si es Content-Encoding, si no, es un header cualquiera */
+
 static enum header_res_autom_state 
 content_length_case(const uint8_t b, struct http_res_parser* p ){
 
@@ -96,74 +100,52 @@ content_length_case(const uint8_t b, struct http_res_parser* p ){
     } else if(p->i_header == CONTENT_LENGTH_LEN){
         return header_name;
     }else if(a == HEADER_RES_STRING[2][p->i_header]){
-        return header_content_length_check;
+        return header_content_length_case;
+    }else if(a == HEADER_RES_STRING[3][p->i_header]){
+        return header_content_type_case;
+    }else if(a == HEADER_RES_STRING[4][p->i_header]){
+        return header_content_encoding_case;
     }  
     return (a==':') ? header_value_start : header_name;
 
 }
 
-static enum header_res_autom_state
-encoding_recon(const uint8_t b, struct http_res_parser* p) {
-    if('g' == b) {
-        p->i_encoding = 0;
-        remaining_set(p, GZIP_LEN);
-        p->encoding = GZIP;
-        p->i = 1;
-        p->response->encodings[p->n_encodings++] = encoding_gzip;
-        return header_transfer_encoding_check;
-    } else if('d' == b) {
-        p->i_encoding = 0;
-        p->encoding = DEFLATE;
-        remaining_set(p, DEFLATE_LEN);
-        p->i = 1;
-        p->response->encodings[p->n_encodings++] = encoding_deflate;
-        return header_transfer_encoding_check;
-    } else if('c' == b){
-        p->i_encoding = 0;
-        p->encoding_flag = true;
-        //rellamar
-        return header_transfer_encoding_consume_start;
-    } else if(p->encoding_flag){
-        if(b == 'o'){
-            p->i_encoding = 1;
-            p->encoding = COMPRESS;
-            remaining_set(p, COMPRESS_LEN);
-            p->i = 1;
-            p->response->encodings[p->n_encodings++] = encoding_compress;
-            return header_transfer_encoding_check;
-        }
-        if(b == 'h'){
-            p->i_encoding = 1;
-            p->encoding = CHUNKED;
-            remaining_set(p, CHUNKED_LEN);
-            p->i = 1;
-            p->response->encodings[p->n_encodings++] = encoding_chunked;
-            return header_transfer_encoding_check;
-        }
-        p->encoding_flag = false;
+static enum header_res_autom_state 
+content_type_case(const uint8_t b, struct http_res_parser* p ){
+
+    int a=toupper(b);
+    p->i_header++;  
+    if (!IS_URL_CHAR(a) && (a!=':')){
+        return header_invalid;
+    }else if((p->i_header == CONTENT_TYPE_LEN) && (a==':')){
+        return header_content_type_consume_start;
+    } else if(p->i_header == CONTENT_TYPE_LEN){
+        return header_name;
+    }else if(a == HEADER_RES_STRING[3][p->i_header]){
+        return header_content_type_case;
+    }else if(a == HEADER_RES_STRING[4][p->i_header]){
+        return header_content_encoding_case;
     }
-   return http_error_unsupported_encoding;
+    return (a==':') ? header_value_start : header_name;
+
 }
 
-static enum header_res_autom_state
-encoding_check(const uint8_t b, struct http_res_parser* p) {
+static enum header_res_autom_state 
+content_encoding_case(const uint8_t b, struct http_res_parser* p ){
+
     int a=toupper(b);
-    p->i_encoding++;  
-    if(remaining_is_done(p)){
-        if(a == ','){
-            remaining_set(p, MAX_HEADERS_LENGTH-1);
-            return header_transfer_encoding_consume_start;
-        }
-        if(a == SP || a == CR){
-                    remaining_set(p, MAX_HEADERS_LENGTH-1);
-            return header_done_cr;
-        }
-        return http_error_unsupported_encoding;
+    p->i_header++;  
+    if (!IS_URL_CHAR(a) && (a!=':')){
+        return header_invalid;
+    }else if((p->i_header == CONTENT_ENCODING_LEN) && (a==':')){
+        return header_content_encoding_consume_start;
+    } else if(p->i_header == CONTENT_ENCODING_LEN){
+        return header_name;
+    }else if(a == HEADER_RES_STRING[4][p->i_header]){
+        return header_content_encoding_case;
     }
-    if(ENCODING_STRING[p->encoding][p->i_encoding] == a){
-        return header_transfer_encoding_check;
-    }
-   return http_error_unsupported_encoding;
+    return (a==':') ? header_value_start : header_name;
+
 }
 
 static enum header_res_autom_state
@@ -182,6 +164,287 @@ transfer_encoding_case(const uint8_t b, struct http_res_parser * p){
     return (a == ':') ? header_value_start : header_name;
 }
 
+/* CHECK FOR TEXT/PLAIN IMAGE/JPEG IMAGE/PNG APPLICATION/OCTET-STREAM*/
+/* en TEXT/PLAIN guardar el charset */
+/* creo que voy a tener que hacer una funcion aparte para poder parsearlo
+    ya que si no no voy a saber como distinguirlo, encima hay que soportar
+    mas de un type
+*/
+/* buscar los otros types */
+static enum header_res_autom_state
+type_recon(const uint8_t b, struct http_res_parser* p) {
+    if( remaining_is_done(p) ){
+        if( b == CR ){
+            remaining_set(p, MAX_HEADERS_LENGTH-1);
+            return header_done_cr;
+        }
+        //return http_error_unsupported_type;
+        return header_invalid;
+    }
+    if('t' == b) { // TEXT_PLAIN
+        p->i_type = 0;
+        remaining_set(p, TEXT_PLAIN_LEN); 
+        p->type = TEXT_PLAIN; 
+        p->i = 1;
+        p->response->content_types[p->content_types++][p->i_type++] = b;
+        return header_content_type_check; // modify
+    } else if('i' == b) {
+        /* puede ser JPEG o PNG */
+        p->i_type = 0;
+        p->type = IMG; 
+        remaining_set(p, IMG_LEN); 
+        p->i = 1;
+        p->response->content_types[p->content_types++][p->i_type++] = b;
+        return header_content_type_check;
+    } else if('a' == b){ // APP_OCTET_STREAM
+        p->i_type = 0;
+        remaining_set(p, APP_OCTET_LEN);
+        p->type = APP_OCTET; 
+        p->i = 1;
+        p->response->content_types[p->content_types++][p->i_type++] = b;
+        return header_content_type_check;
+    } 
+    /* si queremos parsear cualquier type: */
+
+    /*
+    if( IS_URL_CHAR(b) ){
+        return header_content_type_recon;
+    }
+    */
+
+    return header_invalid; // podriamos definir un estado de invalid type
+}
+
+/* Chequeamos si es alguno de los types conocidos */
+
+static enum header_res_autom_state
+type_check(const uint8_t b, struct http_res_parser* p) {
+    int a=toupper(b);
+    p->i_type++;  
+    if(remaining_is_done(p)){
+        if(a == ';' && p->type == TEXT_PLAIN){
+            remaining_set(p, CHARSET_LEN); 
+            return header_charset_case;
+        }
+        if(a == CR){ // solo aceptamos un unico type
+            remaining_set(p, MAX_HEADERS_LENGTH-1);
+            return header_done_cr;
+        }
+        if(p->type == IMG){
+
+            if( a == 'J'){
+                p->type = JPEG; 
+                remaining_set(p, JPEG_LEN); 
+                return header_content_type_check; 
+            }else if(a == 'P'){
+                p->type = PNG;
+                remaining_set(p, PNG_LEN);
+                return header_content_type_check;
+            }
+            
+        }
+        //return http_error_unsupported_encoding;
+        return header_invalid;
+    }
+    if(TYPE_STRING[p->type][p->i_type] == a){
+        p->response->content_types[p->content_types][p->i_type++] = b;
+        return header_content_type_check;
+    }
+   //return http_error_unsupported_encoding;
+    return header_invalid;
+}
+
+/* chequear si es charset */
+
+static enum header_res_autom_state
+charset_case(const uint8_t b, struct http_res_parser * p){
+    int a = toupper(b);
+    p->i_charset_head++; // reuse
+    if(!IS_URL_CHAR(a) && (a != '=')){
+        return header_invalid;
+    }else if((p->i_charset_head == CHARSET_LEN) && (a == '=')){ 
+        p->i_charset = 0;
+        return header_charset_recon;
+    }else if(a == CHARSET_STRING[1][p->i_charset_head++]){
+        return header_charset_case; 
+    }
+    return header_invalid;
+}
+
+/*check charset value*/
+
+static enum header_res_autom_state
+charset_recon(const uint8_t b, struct http_res_parser* p) {
+    if( remaining_is_done(p) ){
+        if( b == CR ){
+            remaining_set(p, MAX_HEADERS_LENGTH-1);
+            return header_done_cr;
+        }
+        //return http_error_unsupported_type;
+        return header_invalid;
+    }
+    if( p->charset_flag ){ 
+        p->charset_flag = 0;
+        if( b == 't'){ // UTF
+            p->charset = UTF; 
+            p->i = 1;
+            remaining_set(p, UTF_LEN); 
+            p->response->charset[p->i_charset++] = b;
+            return header_charset_check;
+        }
+        if( b == 's'){ // US-ASCII
+            p->charset = US_ASCII; 
+            p->i = 1;
+            remaining_set(p, US_ASCII_LEN);
+            p->response->charset[p->i_charset++] = b;
+            return header_charset_check;
+        }
+
+        return header_invalid;
+    }
+    if('u' == b) { // UTF-8 o US-ASCII
+        p->charset_flag = 1;
+        p->i_charset = 0; 
+        p->response->charset[p->i_charset++] = b; 
+        return header_charset_recon; // modify
+    } else if('i' == b) {   //iso-8859-1
+        p->i_charset = 0;
+        p->charset = ISO; 
+        remaining_set(p, ISO_LEN); 
+        p->i = 1;
+        p->response->charset[p->i_charset++] = b;
+        return header_charset_check;
+    }
+    /* si queremos parsear cualquier charset: */
+
+    /*
+    if( IS_URL_CHAR(b) ){
+        return header_charset_recon;
+    }
+    */
+
+    return header_invalid; // podriamos definir un estado de invalid type
+}
+
+/* chequear si es alguno de los aceptados*/
+static enum header_res_autom_state
+charset_check(const uint8_t b, struct http_res_parser* p) {
+    int a=toupper(b);
+    p->i_charset++; 
+    if(remaining_is_done(p)){
+        if(a == CR){
+            remaining_set(p, MAX_HEADERS_LENGTH-1);
+            return header_done_cr;
+        }
+        //return http_error_unsupported_encoding;
+        return header_invalid;
+    }
+    if(CHARSET_STRING[p->charset][p->i_charset] == a){ 
+        p->response->charset[p->i_charset++] = b;
+        return header_charset_check;
+    }
+   //return http_error_unsupported_encoding;
+    return header_invalid;
+}
+
+/* CHECK FOR IDENTITY */
+/* Aceptamos otros encodings o los tiramos ?*/
+/* copiamos en encodings mientras sea igual a IDENTITY, si se diferencia reiniciamos el i_c_encoding
+    para que lo pise
+*/
+
+static enum header_res_autom_state
+content_encoding_recon(const uint8_t b, struct http_res_parser* p) {
+    if(remaining_is_done(p)){
+        if( b == CR){
+            remaining_set(p, MAX_HEADERS_LENGTH-1);
+            return header_done_cr;
+        }
+        //return http_error_unsupported_encoding; // o error por header muy largo
+        return header_invalid;
+    }
+    if('i' == b) {
+        p->i_c_encoding = 0;
+        remaining_set(p, IDENTITY_LEN); 
+        p->encoding = IDENTITY; /* quiza podemos usar el mismo */ 
+        p->i = 1;
+        p->response->content_encodings[p->i_c_encoding++] = b;
+        return header_content_encoding_check; // define
+    }
+
+    /* si queremos que acepte cualq encoding - pedir que i_encoding = 0*/
+    /*
+    if('i' == b) {
+        remaining_set(p, IDENTITY_LEN); // define
+        p->encoding = IDENTITY; // quiza podemos usar el mismo --- define
+        p->i = 1;
+        p->response->content_encodings[p->content_encodings++][p->i_c_encoding++] = b;
+        return header_transfer_encoding_check;
+    }else{
+        return header_content_encoding_recon;
+
+    }
+    */
+
+   //return http_error_unsupported_encoding;
+    return header_invalid;
+}
+
+/*con esto anotamos los encodings */
+static enum header_res_autom_state
+content_encoding_check(const uint8_t b, struct http_res_parser* p) {
+    int a=toupper(b);
+    p->i_c_encoding++;  
+    if(remaining_is_done(p)){
+        if(a == CR){
+            remaining_set(p, MAX_HEADERS_LENGTH-1);
+            return header_done_cr;
+        }
+        return header_invalid;
+    }
+    if(CONTENT_ENCODING_STRING[1][p->i_c_encoding] == a){
+        p->response->content_encodings[p->i_c_encoding++] = b;
+        return header_content_encoding_check;
+    }
+   //return http_error_unsupported_encoding;
+    return header_invalid;
+}
+
+/* CHECK FOR CHUNKED */
+static enum header_res_autom_state
+encoding_recon(const uint8_t b, struct http_res_parser* p) {
+    if('c' == b){
+        p->i_encoding = 0;
+        p->encoding = CHUNKED;
+        remaining_set(p, CHUNKED_LEN);
+        p->i = 1;
+        p->response->transfer_encodings[p->transfer_encodings++][p->i_encoding++] = b;
+        //rellamar
+        return header_transfer_encoding_check;
+    }
+    //return http_error_unsupported_encoding;
+    return header_invalid;
+}
+
+/* CHECK FOR CHUNKED */
+static enum header_res_autom_state
+encoding_check(const uint8_t b, struct http_res_parser* p) {
+    int a=toupper(b);
+    p->i_encoding++;  
+    if(remaining_is_done(p)){
+        if(a == CR){
+            remaining_set(p, MAX_HEADERS_LENGTH-1);
+            return header_done_cr;
+        }
+        return http_error_unsupported_encoding;
+    }
+    if(ENCODING_STRING[p->encoding][p->i_encoding] == a){ // podria poner chunked directo
+        p->response->transfer_encodings[p->transfer_encodings][p->i_encoding++] = b;
+        return header_transfer_encoding_check;
+    }
+    //return http_error_unsupported_encoding;
+    return header_invalid;
+}
 
 static enum http_res_state
 header_check_automata(const uint8_t b, struct http_res_parser* p) {
@@ -198,7 +461,7 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
             }
             if(a == 'C'){
                 p->i_header = 0;
-                p->h_state = header_content_length_check;
+                p->h_state = header_content_length_case;
                 break;
             }
             if(a == 'T'){
@@ -233,7 +496,44 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
                 p->h_state = header_done;
             }
             break;
-        case header_content_length_check:
+        case header_content_type_case:
+                p->h_state = content_type_case(b,p);
+                break;
+        case header_content_encoding_case:
+                p->h_state = content_encoding_case(b,p);
+                break;
+        case header_content_encoding_check:
+                p->h_state = content_encoding_check(b,p);
+                break;
+        case header_content_encoding_consume_start:
+            if(b == SP){
+                p->h_state = header_content_encoding_recon;
+                break;
+            }
+        case header_content_encoding_recon:
+                p->h_state = content_encoding_recon(b,p);
+                break;
+        case header_content_type_consume_start:
+            if(b == SP){
+                p->h_state = header_content_type_recon;
+                break;
+            }
+        case header_content_type_recon:
+                p->h_state = type_recon(b,p);
+                break;
+        case header_content_type_check:
+                p->h_state = type_check(b,p);
+                break;
+        case header_charset_case:
+                p->h_state = charset_case(b,p);
+                break;
+        case header_charset_recon:
+                p->h_state = charset_recon(b,p);
+                break;
+        case header_charset_check:
+                p->h_state = charset_check(b,p);
+                break;
+        case header_content_length_case:
                 p->h_state = content_length_case(b, p);
             break;
         case header_transfer_encoding_case:
@@ -715,7 +1015,7 @@ void test_response_with_single_transfer() {
 
     assert(!errored);
     assert(st == http_done);
-    assert(parser.response->encodings[parser.n_encodings-1] == (encoding_gzip));
+    assert(parser.response->transfer_encodings[parser.transfer_encodings-1] == (encoding_gzip));
     LOG_DEBUG("Test response with single transfer succesful");
     printf("RESPONSE SINGLE TRANSFER OK\n");
 }
@@ -747,8 +1047,8 @@ void test_response_with_multi_transfer() {
 
     assert(!errored);
     assert(st == http_done);
-    assert(parser.response->encodings[parser.n_encodings-2] == (encoding_gzip));
-    assert(parser.response->encodings[parser.n_encodings-1] == (encoding_deflate));
+    assert(parser.response->transfer_encodings[parser.transfer_encodings-2] == (encoding_gzip));
+    assert(parser.response->transfer_encodings[parser.transfer_encodings-1] == (encoding_deflate));
     LOG_DEBUG("Test response with multi transfer succesful");
     printf("RESPONSE MULTI TRANSFER OK\n");
 }
@@ -782,7 +1082,7 @@ void test_response_with_content_and_transfer() {
     assert(!errored);
     assert(st == http_done);
     assert(parser.response->header_content_length == ((uint16_t) 10));
-    assert(parser.response->encodings[parser.n_encodings-1] == (encoding_gzip));
+    assert(parser.response->transfer_encodings[parser.transfer_encodings-1] == (encoding_gzip));
     LOG_DEBUG("Test response with content and transfer succesfull");
     printf("RESPONSE CONTENT AND TRANSFER OK\n");
 }
