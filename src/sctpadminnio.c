@@ -348,8 +348,22 @@ request_process(struct selector_key* key, struct request_st* d) {
     //TODO dado el estado al que llegue, 
     // hago lo que tenga que hacer y paso al estado WRITE,
     // dejando en el bf de write lo que hay que devolver.
-    LOG_DEBUG("asctpadminnio.c ::: request_process");
-    // LOG_DEBUG(d->parser.state);
+    switch(d->parser.request->method) {
+        case metrics:
+            LOG_DEBUG("request_process ::: metrics");
+            break;
+        case logs:
+            LOG_DEBUG("request_process ::: logs");
+            break;
+        case enable_transformer:
+            LOG_DEBUG("request_process ::: enable_transformer");
+            break;
+        case disable_transformer:
+            LOG_DEBUG("request_process ::: disable_transformer");
+            break;
+        default:
+            LOG_DEBUG("request_process ::: unknown");
+    }
 
     // struct selector_key* k = malloc(sizeof(*key));
     // if(k == NULL) {

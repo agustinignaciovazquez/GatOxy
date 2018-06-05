@@ -169,18 +169,19 @@ method_check(const uint8_t b, struct admin_parser* p) {
 	char dst[50];
 	sprintf(dst, "method recon::: received >%c<", b);
 	LOG_DEBUG(dst);
-	LOG_DEBUG("");
-	if (remaining_is_done(p)) {
-		if (b == CR) { //TODO fixear para no salteo el estado de espacio
-			// remaining_set(p, MAX_URI_LENGTH-1);
-			return admin_done_request;
-		}
-		return admin_error_bad_method;
-	}
+	
+	//primero chequeo byte
 	if (ADMIN_METHOD_STRING[p->request->method][p->i] == b) {
 		p->i++;
+		
+		if (remaining_is_done(p)) {
+			LOG_DEBUG("method recon ::: remaining_is_done");
+			return admin_done_request;
+		}
+
 		return admin_check_method;
 	}
+
 	return admin_error_bad_method;
 }
 
@@ -221,7 +222,8 @@ admin_consume(buffer *b, struct admin_parser *p, bool *errored) {
 
 extern bool
 admin_is_done(const enum admin_state st, bool *errored) {
-	if (st > admin_done || errored != 0) {
+	if (st > admin_done) {
+		LOG_DEBUG("admin.c ::: admin_is_done st>admin_done");
 		*errored = true;
 	}
 	return st >= admin_done;
