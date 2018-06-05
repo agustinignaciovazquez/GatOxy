@@ -1085,5 +1085,4 @@ void test_response_with_content_and_transfer() {
     assert(parser.response->transfer_encodings[parser.transfer_encodings-1] == (encoding_gzip));
     LOG_DEBUG("Test response with content and transfer succesfull");
     printf("RESPONSE CONTENT AND TRANSFER OK\n");
-}
-*/
+}*/
