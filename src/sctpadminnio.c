@@ -11,11 +11,12 @@
 
 #include "HTTPRequest.h"
 #include "buffer.h"
-
+#include "logging.h"
 #include "stm.h"
 #include "httpproxynio.h"
 #include "netutils.h"
 #include "buffer_size.h"
+#include "admin.h"
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
 
@@ -49,7 +50,7 @@ enum sctpCli_state {
      *                  contenido de los descriptores
      *   - ERROR        ante I/O error
      */
-    REQUEST_WRITE,
+    // REQUEST_WRITE,
     /**
      * Copia bytes entre client_fd y origin_fd.
      *
@@ -60,7 +61,7 @@ enum sctpCli_state {
      * Transicion:
      *   - DONE     cuando no queda nada mas por copiar.
      */
-    COPY,
+    // COPY,
     // estados terminales
     DONE,
     ERROR,
@@ -72,11 +73,8 @@ struct request_st {
     buffer                    *rb, *wb;
 
     /** parser */
-    struct http_request             request;
-    struct http_parser    		    parser;
-
-    /** el resumen del respuesta a enviar*/
-    enum http_response_status status;
+    struct admin_request             request;
+    struct admin_parser    		    parser;
 
     const int                 *client_fd;
 };
@@ -159,23 +157,23 @@ sctpCli_new(int client_fd) {
 
     ret->raw_buff_a = malloc(buffer_size);
     ret->raw_buff_b = malloc(buffer_size);
-
+LOG_DEBUG("sctpadminnio.c :::  sctpCli_new 1");
     if(ret->raw_buff_a  == NULL || ret->raw_buff_b == NULL)
     {
         ret = NULL;
         goto finally;
     }
-
+LOG_DEBUG("sctpadminnio.c :::  sctpCli_new 2");
     ret->stm    .initial   = REQUEST_READ;
     ret->stm    .max_state = ERROR;
     ret->stm    .states    = sctp_describe_states();
-
+LOG_DEBUG("sctpadminnio.c :::  sctpCli_new 3");
     stm_init(&ret->stm);
-
+LOG_DEBUG("sctpadminnio.c :::  sctpCli_new 4");
 
     buffer_init(&ret->read_buffer,  buffer_size, ret->raw_buff_a);
     buffer_init(&ret->write_buffer, buffer_size, ret->raw_buff_b);
-
+LOG_DEBUG("sctpadminnio.c :::  sctpCli_new 5");
     ret->references = 1;
 finally:
     return ret;
@@ -239,19 +237,24 @@ static const struct fd_handler sctpCli_handler = {
 /** Intenta aceptar la nueva conexión entrante*/
 void
 sctp_passive_accept(struct selector_key *key) {
+    LOG_DEBUG("sctpadminnio.c ::: sctp_passive_accept 1");
     struct sockaddr_storage       client_addr;
     socklen_t                     client_addr_len = sizeof(client_addr);
     struct sctpCli                *state           = NULL;
 
     const int client = accept(key->fd, (struct sockaddr*) &client_addr,
                                                           &client_addr_len);
+
+    LOG_DEBUG("sctpadminnio.c ::: sctp_passive_accept 2");
     if(client == -1) {
         goto fail;
     }
     if(selector_fd_set_nio(client) == -1) {
         goto fail;
     }
+    LOG_DEBUG("sctpadminnio.c ::: sctp_passive_accept 3");
     state = sctpCli_new(client);
+    LOG_DEBUG("sctpadminnio.c ::: sctp_passive_accept 4");
     if(state == NULL) {
         // sin un estado, nos es imposible manejaro.
         // tal vez deberiamos apagar accept() hasta que detectemos
@@ -262,6 +265,7 @@ sctp_passive_accept(struct selector_key *key) {
     memcpy(&state->client_addr, &client_addr, client_addr_len);
     state->client_addr_len = client_addr_len;
 
+    LOG_DEBUG("sctpadminnio.c ::: sctp_passive_accept 5");
     if(SELECTOR_SUCCESS != selector_register(key->s, client, &sctpCli_handler,
                                               OP_READ, state)) {
         printf("Selector is full \n");
@@ -269,6 +273,7 @@ sctp_passive_accept(struct selector_key *key) {
     }
     return ;
 fail:
+LOG_DEBUG("sctpadminnio.c ::: sctp_passive_accept 6");
     if(client != -1) {
         close(client);
     }
@@ -281,20 +286,21 @@ fail:
 /** inicializa las variables de los estados REQUEST_… */
 static void
 request_init(const unsigned state, struct selector_key *key) {
+    LOG_DEBUG("sctpadminnio.c ::: request_init 1");
     struct request_st * d = &ATTACHMENT(key)->client.request;
 
     d->rb              = &(ATTACHMENT(key)->read_buffer);
     d->wb              = &(ATTACHMENT(key)->write_buffer);
     d->parser.request  = &d->request;
-    d->status          = status_general_proxy_server_failure;
-    http_parser_init(&d->parser);
+    admin_parser_init(&d->parser);
     d->client_fd       = &ATTACHMENT(key)->client_fd;
-
+    LOG_DEBUG("sctpadminnio.c ::: request_init 2");
 }
 
 /** lee todos los bytes del mensaje de tipo `request' y inicia su proceso */
 static unsigned
 request_read(struct selector_key *key) {
+    LOG_DEBUG("sctpadminnio.c ::: request_read 1");
     struct request_st * d = &ATTACHMENT(key)->client.request;
 
       buffer *b     = d->rb;
@@ -304,19 +310,22 @@ request_read(struct selector_key *key) {
       size_t  count;
      ssize_t  n;
 
+    LOG_DEBUG("sctpadminnio.c ::: request_read 2");
     ptr = buffer_write_ptr(b, &count);
     n = recv(key->fd, ptr, count, 0);
+    LOG_DEBUG("sctpadminnio.c ::: request_read 3");
     if(n > 0) {
         fprintf(stderr, "reading");
         buffer_write_adv(b, n);
-        int st = http_consume(b, &d->parser, &error);
-        if(http_is_done(st, 0)) {
+        int st = admin_consume(b, &d->parser, &error);
+        if(admin_is_done(st, 0)) {
             fprintf(stderr, "done reading");
             if(error)
                 return ERROR;//TODO mejorar esto
             // ret = request_process(key, d);
         }
     } else {
+        LOG_DEBUG("sctpadminnio.c ::: request_read ERROR");
         ret = ERROR;
     }
 
@@ -332,9 +341,10 @@ request_resolv_blocking(void *data);
 
 static void
 request_read_close(const unsigned state, struct selector_key *key) {
+    LOG_DEBUG("sctpadminnio.c ::: request_read_close");
     struct request_st * d = &ATTACHMENT(key)->client.request;
 
-    //http_parser_close(&d->parser);
+    // admin_parser_close(&d->parser); TODO descomentar
 }
 
 ////////////////////////////////////////////////////////////////////////////////

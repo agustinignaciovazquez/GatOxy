@@ -177,7 +177,7 @@ method_check(const uint8_t b, struct admin_parser* p) {
 		}
 		return admin_error_bad_method;
 	}
-	if (METHOD_STRING[p->request->method][p->i] == b) {
+	if (ADMIN_METHOD_STRING[p->request->method][p->i] == b) {
 		p->i++;
 		return admin_check_method;
 	}
@@ -244,19 +244,19 @@ void test_logs();
 void test_with_transformer();
 void test_without_transformer();
 
-int main () {
+// int main () {
 
-	LOG_PRIORITY("Starting new test suit of admin.c");
+// 	LOG_PRIORITY("Starting new test suit of admin.c");
 
-	test_unsupported_version();
-	test_bad_password();
-	test_blank_password();
-	test_bad_method();
-	test_metrics();
-	test_logs();
-	test_with_transformer();
-	test_without_transformer();
-}
+// 	test_unsupported_version();
+// 	test_bad_password();
+// 	test_blank_password();
+// 	test_bad_method();
+// 	test_metrics();
+// 	test_logs();
+// 	test_with_transformer();
+// 	test_without_transformer();
+// }
 
 void test_unsupported_version() {
 	LOG_DEBUG("Testing admin request with unsupported version");

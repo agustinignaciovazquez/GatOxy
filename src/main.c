@@ -39,7 +39,7 @@ sigterm_handler(const int signal) {
 int
 main(const int argc, const char **argv) {
     unsigned port = 1080;
-    unsigned confPort = 1090;
+    unsigned confPort = 1082;
 
     if(argc == 1) {
         // utilizamos el default
@@ -101,7 +101,7 @@ main(const int argc, const char **argv) {
     confAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     confAddr.sin_port        = htons(confPort);
 
-    const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);
+    const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if(confServer < 0) {
         err_msg = "unable to create sctp socket";
         goto finally;
@@ -113,14 +113,7 @@ main(const int argc, const char **argv) {
     }
 
     // man 7 ip. no importa reportar nada si falla.
-    struct sctp_initmsg initmsg;
-    /* Specify that a maximum of 5 streams will be available per socket */
-    memset( &initmsg, 0, sizeof(initmsg) );
-    initmsg.sinit_num_ostreams = 5;
-    initmsg.sinit_max_instreams = 5;  // TODO hay que limpiar esto, lo ensucie tratando de ver sctp en netstat,,(resulta no soporta sctp)
-    initmsg.sinit_max_attempts = 4;
-    int aux = setsockopt( confServer, IPPROTO_SCTP, SCTP_INITMSG, &initmsg, sizeof(initmsg) );
-    if (aux < 0) LOG_DEBUG("main.c error de stsockpt");
+    setsockopt( confServer, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int));
 
     if (listen(confServer, 20) < 0) {
         err_msg = "unable to listen sctp";

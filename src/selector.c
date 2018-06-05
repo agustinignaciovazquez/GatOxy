@@ -571,6 +571,7 @@ selector_select(fd_selector s) {
 
         }
     } else {
+        LOG_DEBUG("selector.c ::: handle_iteration");
         handle_iteration(s);
     }
     if(ret == SELECTOR_SUCCESS) {
