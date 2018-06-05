@@ -62,7 +62,7 @@ enum admin_method {
 #define CR '\r'
 #define LF '\n'
 
-static const char *METHOD_STRING[] = {
+static const char *ADMIN_METHOD_STRING[] = {
     NULL, "metrics", "logs", "enable_transformer", "disable_transformer"
 };
 
