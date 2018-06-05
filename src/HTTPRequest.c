@@ -25,7 +25,7 @@ remaining_is_done(struct http_parser* p) {
 extern void http_parser_init (struct http_parser *p){
     p->state     = http_method;
     p->uri_state     = uri_init;
-    p->content_length = -1;
+    p->request->header_content_length = -1;
     p->host_defined = false;
 
     memset(p->request, 0, sizeof(*(p->request)));

@@ -116,6 +116,11 @@ struct request_st {
     int                       *origin_fd;
 };
 
+struct response_st{
+    //struct http_response             response;
+    //struct http_res_parser              parser;
+};
+
 struct transformation_data {
 
     int inputTransformation[2];
@@ -152,6 +157,10 @@ struct copy {
 
     int        client;
 
+    struct http_request * request;
+
+    //struct http_response response;
+
     struct copy *other;
 };
 
@@ -183,15 +192,12 @@ struct socks5 {
     struct state_machine          stm;
 
     /** estados para el client_fd */
-    union {
-        struct request_st         request;
-        struct copy               copy;
-    } client;
+    struct request_st         client_request;
+        struct copy           client_copy;
     /** estados para el origin_fd */
-    union {
-        struct connecting         conn;
-        struct copy               copy;
-    } orig;
+    struct connecting         orig_conn;
+    struct copy               orig_copy;
+    struct response_st        orig_response;
 
     /** buffers para ser usados read_buffer, write_buffer.*/
     uint8_t * raw_buff_a, * raw_buff_b;
@@ -380,7 +386,7 @@ fail:
 /** inicializa las variables de los estados REQUEST_… */
 static void
 request_init(const unsigned state, struct selector_key *key) {
-    struct request_st * d = &ATTACHMENT(key)->client.request;
+    struct request_st * d = &ATTACHMENT(key)->client_request;
 
     d->rb              = &(ATTACHMENT(key)->read_buffer);
     d->wb              = &(ATTACHMENT(key)->write_buffer);
@@ -402,7 +408,7 @@ request_process(struct selector_key* key, struct request_st* d);
 /** lee todos los bytes del mensaje de tipo `request' y inicia su proceso */
 static unsigned
 request_read(struct selector_key *key) {
-    struct request_st * d = &ATTACHMENT(key)->client.request;
+    struct request_st * d = &ATTACHMENT(key)->client_request;
 
       buffer *b     = d->rb;
     unsigned  ret   = REQUEST_READ;
@@ -414,7 +420,7 @@ request_read(struct selector_key *key) {
     ptr = buffer_write_ptr(b, &count);
     n = recv(key->fd, ptr, count, 0);
     if(n > 0) {
-        fprintf(stderr, "reading");
+        fprintf(stderr, "asasd");
         buffer_write_adv(b, n);
         int st = http_consume(b, &d->parser, &error);
         if(http_is_done(st, 0)) {
@@ -498,9 +504,9 @@ request_resolv_blocking(void *data) {
 
     char buff[7];
     snprintf(buff, sizeof(buff), "%d",
-             ntohs(s->client.request.request.dest_port));
-fprintf(stderr, "\nresolving %s:%s\n",s->client.request.request.fqdn, buff);
-    getaddrinfo(s->client.request.request.fqdn, buff, &hints,
+             ntohs(s->client_request.request.dest_port));
+fprintf(stderr, "\nresolving %s:%s\n",s->client_request.request.fqdn, buff);
+    getaddrinfo(s->client_request.request.fqdn, buff, &hints,
                &s->origin_resolution);
 
     selector_notify_block(key->s, key->fd);
@@ -513,7 +519,7 @@ fprintf(stderr, "\nresolving %s:%s\n",s->client.request.request.fqdn, buff);
 /** procesa el resultado de la resolución de nombres */
 static unsigned
 request_resolv_done(struct selector_key *key) {
-    struct request_st * d = &ATTACHMENT(key)->client.request;
+    struct request_st * d = &ATTACHMENT(key)->client_request;
     struct socks5 *s      =  ATTACHMENT(key);
 
     if(s->origin_resolution == 0) {
@@ -593,7 +599,7 @@ finally:
 
 static void
 request_read_close(const unsigned state, struct selector_key *key) {
-    struct request_st * d = &ATTACHMENT(key)->client.request;
+    struct request_st * d = &ATTACHMENT(key)->client_request;
 
     //http_parser_close(&d->parser);
 }
@@ -603,11 +609,11 @@ request_read_close(const unsigned state, struct selector_key *key) {
 ////////////////////////////////////////////////////////////////////////////////
 static void
 request_connecting_init(const unsigned state, struct selector_key *key) {
-    struct connecting *d  = &ATTACHMENT(key)->orig.conn;
+    struct connecting *d  = &ATTACHMENT(key)->orig_conn;
 
     d->client_fd = &ATTACHMENT(key)->client_fd;
     d->origin_fd = &ATTACHMENT(key)->origin_fd;
-    d->status    = &ATTACHMENT(key)->client.request.status;
+    d->status    = &ATTACHMENT(key)->client_request.status;
     d->wb        = &ATTACHMENT(key)->write_buffer;
 }
 
@@ -617,16 +623,18 @@ request_connecting(struct selector_key *key) {
     fprintf(stderr, "connecting");
     int error;
     socklen_t len = sizeof(error);
-    struct connecting *d  = &ATTACHMENT(key)->orig.conn;
-    struct request_st * d1 = &ATTACHMENT(key)->client.request;
+    struct connecting *d  = &ATTACHMENT(key)->orig_conn;
+    struct request_st * d1 = &ATTACHMENT(key)->client_request;
     if (getsockopt(key->fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
         *d->status = status_general_proxy_server_failure;
+        return ERROR;
     } else {
         if(error == 0) {
             *d->status     = status_succeeded;
             *d->origin_fd = key->fd;
         } else {
             *d->status = errno_to_socks(error);
+            return ERROR;
         }
     }
 
@@ -668,7 +676,7 @@ log_request(const enum http_response_status status,
 /** escribe todos los bytes de la respuesta al mensaje `request' */
 static unsigned
 request_write(struct selector_key *key) {
-    struct request_st * d = &ATTACHMENT(key)->client.request;
+    struct request_st * d = &ATTACHMENT(key)->client_request;
 
     unsigned  ret       = REQUEST_WRITE;
     buffer *b         = d->wb;
@@ -703,6 +711,19 @@ request_write(struct selector_key *key) {
     return ret;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// RESPONSE
+////////////////////////////////////////////////////////////////////////////////
+/** inicializa las variables de los estados RESPONSE_… */
+/*static void
+response_init(struct selector_key *key) {
+    
+    struct response_st * d = &ATTACHMENT(key)->orig_response;
+    d->parser.response  = &d->response;
+    http_res_parser_init (&d->parser);
+
+}*/
+
 static fd_interest
 copy_compute_interests(fd_selector s, struct copy* d);
 ////////////////////////////////////////////////////////////////////////////////
@@ -711,23 +732,30 @@ copy_compute_interests(fd_selector s, struct copy* d);
 
 static void
 copy_init(const unsigned state, struct selector_key *key) {
-    struct copy * d = &ATTACHMENT(key)->client.copy;
+
+    struct copy * d = &ATTACHMENT(key)->client_copy;
+    //memcpy(&(d->request), &ATTACHMENT(key)->client_request.request, sizeof(struct http_request));
+
+    //fprintf(stderr, "%s\n", d->request.request.fqdn);
     buffer * buff = ATTACHMENT(key)->headers_copy;
     d->fd        = &ATTACHMENT(key)->client_fd;
     d->rb        = ATTACHMENT(key)->headers_copy;
     d->wb        = &ATTACHMENT(key)->write_buffer;//->write_buffer;
     d->duplex    = OP_READ | OP_WRITE;
     d->client    = true;
-    d->other     = &ATTACHMENT(key)->orig.copy;
+    d->other     = &ATTACHMENT(key)->orig_copy;
 
 
-    d = &ATTACHMENT(key)->orig.copy;
+
+    d = &ATTACHMENT(key)->orig_copy;
     d->client   = false;
     d->fd       = &ATTACHMENT(key)->origin_fd;
     d->rb       = &ATTACHMENT(key)->write_buffer;
     d->wb       = ATTACHMENT(key)->headers_copy;
     d->duplex   = OP_READ | OP_WRITE;
-    d->other    = &ATTACHMENT(key)->client.copy;
+    d->other    = &ATTACHMENT(key)->client_copy;
+
+   // response_init(key);
 
 }
 
@@ -755,7 +783,7 @@ copy_compute_interests(fd_selector s, struct copy* d) {
 /** elige la estructura de copia correcta de cada fd (origin o client) */
 static struct copy *
 copy_ptr(struct selector_key *key) {
-    struct copy * d = &ATTACHMENT(key)->client.copy;
+    struct copy * d = &ATTACHMENT(key)->client_copy;
 
     if(*d->fd == key->fd) {
         // ok
@@ -779,7 +807,7 @@ copy_r(struct selector_key *key) {
 
     unsigned ret = COPY;
 
-
+    int * content_length_client = &ATTACHMENT(key)->client_request.request.header_content_length;
     if(!d->client)
     {
         if(transform && ATTACHMENT(key)->transformation == NULL) {
@@ -787,7 +815,7 @@ copy_r(struct selector_key *key) {
 
             ATTACHMENT(key)->transformation = t;
 
-            t->prog = "sed s/o/0/g";
+            t->prog = "cat";
 
             buffer_init(&(t->input_buffer), 50, t->raw_input_buffer);
             buffer_init(&(t->output_buffer), 50, t->raw_output_buffer);
@@ -820,7 +848,7 @@ copy_r(struct selector_key *key) {
     uint8_t *ptr = buffer_write_ptr(b, &size);
 
     n = recv(key->fd, ptr, size, 0);
-    if(n <= 0) {
+    if(n <= 0 || *content_length_client <= 0) {
         if(!d->client && ATTACHMENT(key)->transformation != NULL )
         {
             if(!buffer_can_read(b))
@@ -832,7 +860,12 @@ copy_r(struct selector_key *key) {
             return DONE;
         }
     } else {
+        if(d->client){
+            *content_length_client -= n;
+            fprintf(stderr,"n es %d", *content_length_client);
+        }
         buffer_write_adv(b, n);
+        
     }
     copy_compute_interests(key->s, d);
     copy_compute_interests(key->s, d->other);
@@ -1035,8 +1068,8 @@ static void transformation_read (struct selector_key *key)
         if(count == 0)close(key->fd);
         if(!buffer_can_read(b))
         {
-            shutdown(*ATTACHMENT(key)->client.copy.fd, SHUT_WR);
-            ATTACHMENT(key)->client.copy.duplex = OP_NOOP;
+            shutdown(*ATTACHMENT(key)->client_copy.fd, SHUT_WR);
+            ATTACHMENT(key)->client_copy.duplex = OP_NOOP;
         }
 
     }else{
@@ -1044,10 +1077,10 @@ static void transformation_read (struct selector_key *key)
             compute_transformation_interests(key);
     }
 
-    copy_compute_interests(key->s, &ATTACHMENT(key)->client.copy);
-    copy_compute_interests(key->s , ATTACHMENT(key)->client.copy.other);
+    copy_compute_interests(key->s, &ATTACHMENT(key)->client_copy);
+    copy_compute_interests(key->s , ATTACHMENT(key)->client_copy.other);
 
-    if(ATTACHMENT(key)->client.copy.duplex == OP_NOOP){
+    if(ATTACHMENT(key)->client_copy.duplex == OP_NOOP){
         socksv5_done(key);
     }
 
@@ -1075,7 +1108,7 @@ static void transformation_write (struct selector_key *key)
     }else{
             buffer_read_adv(b, count);
         compute_transformation_interests(key);
-        if((ATTACHMENT(key)->orig.copy.duplex && OP_READ) != OP_READ && !buffer_can_read(b))
+        if((ATTACHMENT(key)->orig_copy.duplex && OP_READ) != OP_READ && !buffer_can_read(b))
         {
             t->inputTransformation[WRITE] = -1;
             selector_unregister_fd(key->s, key->fd);
@@ -1084,6 +1117,6 @@ static void transformation_write (struct selector_key *key)
 
     }
 
-    copy_compute_interests(key->s, &ATTACHMENT(key)->client.copy);
-    copy_compute_interests(key->s , ATTACHMENT(key)->client.copy.other);
+    copy_compute_interests(key->s, &ATTACHMENT(key)->client_copy);
+    copy_compute_interests(key->s , ATTACHMENT(key)->client_copy.other);
 }
