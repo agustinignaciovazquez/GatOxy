@@ -9,7 +9,6 @@
 
 #include <arpa/inet.h>
 
-#include "HTTPRequest.h"
 #include "buffer.h"
 #include "logging.h"
 #include "stm.h"
@@ -30,27 +29,24 @@ enum sctpCli_state {
      *
      * Transiciones:
      *   - REQUEST_READ        mientras el mensaje no esté completo
-     *   - REQUEST_RESOLV      se requiere para resolver el hostname
-     *   - REQUEST_WRITE       si determinamos que el mensaje no lo podemos
-     *                         procesar (ej: no soportamos un comando)
+     *   - REQUEST_WRITE      
      *   - ERROR               ante cualquier error (IO/parseo)
      */
     REQUEST_READ,
 
     /**
-     * envía la respuesta del `request' al cliente.
+     * escribe al cliente.
      *
      * Intereses:
      *   - OP_WRITE sobre client_fd
      *   - OP_NOOP  sobre origin_fd
      *
      * Transiciones:
-     *   - HELLO_WRITE  mientras queden bytes por enviar
-     *   - COPY         si el request fue exitoso y tenemos que copiar el
-     *                  contenido de los descriptores
+     *   - DONE
      *   - ERROR        ante I/O error
      */
-    // REQUEST_WRITE,
+    REQUEST_WRITE,
+
     /**
      * Copia bytes entre client_fd y origin_fd.
      *
@@ -297,6 +293,8 @@ request_init(const unsigned state, struct selector_key *key) {
     LOG_DEBUG("sctpadminnio.c ::: request_init 2");
 }
 
+static unsigned request_process(struct selector_key* key, struct request_st* d);
+
 /** lee todos los bytes del mensaje de tipo `request' y inicia su proceso */
 static unsigned
 request_read(struct selector_key *key) {
@@ -322,7 +320,7 @@ request_read(struct selector_key *key) {
             fprintf(stderr, "done reading");
             if(error)
                 return ERROR;//TODO mejorar esto
-            // ret = request_process(key, d);
+            ret = request_process(key, d);
         }
     } else {
         LOG_DEBUG("sctpadminnio.c ::: request_read ERROR");
@@ -330,6 +328,48 @@ request_read(struct selector_key *key) {
     }
 
     return error ? ERROR : ret;
+}
+
+/**
+ * Procesa el mensaje de tipo `request'.
+ * Únicamente soportamos el comando cmd_connect.
+ *
+ * Si tenemos la dirección IP intentamos establecer la conexión.
+ *
+ * Si tenemos que resolver el nombre (operación bloqueante) disparamos
+ * la resolución en un thread que luego notificará al selector que ha terminado.
+ *
+ */
+static unsigned
+request_process(struct selector_key* key, struct request_st* d) {
+    unsigned  ret = REQUEST_WRITE;
+    pthread_t tid;
+
+    //TODO dado el estado al que llegue, 
+    // hago lo que tenga que hacer y paso al estado WRITE,
+    // dejando en el bf de write lo que hay que devolver.
+    LOG_DEBUG("asctpadminnio.c ::: request_process");
+    // LOG_DEBUG(d->parser.state);
+
+    // struct selector_key* k = malloc(sizeof(*key));
+    // if(k == NULL) {
+    //     ret       = REQUEST_WRITE;
+    //     d->status = status_general_proxy_server_failure;
+    //     selector_set_interest_key(key, OP_WRITE);
+    // } else {
+    //     memcpy(k, key, sizeof(*k));
+    //     if(-1 == pthread_create(&tid, 0,
+    //                     request_resolv_blocking, k)) {
+    //         ret       = REQUEST_WRITE;
+    //         d->status = status_general_proxy_server_failure;
+    //         selector_set_interest_key(key, OP_WRITE);
+    //     } else{
+    //         ret = REQUEST_RESOLV;
+    //         selector_set_interest_key(key, OP_NOOP);
+    //     }
+    // }
+
+    return ret;
 }
 
 
@@ -352,39 +392,39 @@ request_read_close(const unsigned state, struct selector_key *key) {
 ////////////////////////////////////////////////////////////////////////////////
 
 
-/**
- * Computa los intereses en base a la disponiblidad de los buffer.
- * La variable duplex nos permite saber si alguna vía ya fue cerrada.
- * Arrancá OP_READ | OP_WRITE.
- */
-static fd_interest
-copy_compute_interests(fd_selector s, struct copy* d) {
-    fd_interest ret = OP_NOOP;
-    if ((d->duplex & OP_READ)  && buffer_can_write(d->rb)) {
-        ret |= OP_READ;
-    }
-    if ((d->duplex & OP_WRITE) && buffer_can_read (d->wb)) {
-        ret |= OP_WRITE;
-    }
-    selector_status status = selector_set_interest(s, *d->fd, ret);
-    if(SELECTOR_SUCCESS != status) {
-        abort();
-    }
-    return ret;
-}
+// /**
+//  * Computa los intereses en base a la disponiblidad de los buffer.
+//  * La variable duplex nos permite saber si alguna vía ya fue cerrada.
+//  * Arrancá OP_READ | OP_WRITE.
+//  */
+// static fd_interest
+// copy_compute_interests(fd_selector s, struct copy* d) {
+//     fd_interest ret = OP_NOOP;
+//     if ((d->duplex & OP_READ)  && buffer_can_write(d->rb)) {
+//         ret |= OP_READ;
+//     }
+//     if ((d->duplex & OP_WRITE) && buffer_can_read (d->wb)) {
+//         ret |= OP_WRITE;
+//     }
+//     selector_status status = selector_set_interest(s, *d->fd, ret);
+//     if(SELECTOR_SUCCESS != status) {
+//         abort();
+//     }
+//     return ret;
+// }
 
-/** elige la estructura de copia correcta de cada fd (origin o client) */
-static struct copy *
-copy_ptr(struct selector_key *key) {
-    struct copy * d = &ATTACHMENT(key)->client.copy;
+// /** elige la estructura de copia correcta de cada fd (origin o client) */
+// static struct copy *
+// copy_ptr(struct selector_key *key) {
+//     struct copy * d = &ATTACHMENT(key)->client.copy;
 
-    if(*d->fd == key->fd) {
-        // ok
-    } else {
-        d = d->other;
-    }
-    return  d;
-}
+//     if(*d->fd == key->fd) {
+//         // ok
+//     } else {
+//         d = d->other;
+//     }
+//     return  d;
+// }
 
 /** definición de handlers para cada estado */
 static const struct state_definition sctp_client_statbl[] = {
@@ -394,9 +434,14 @@ static const struct state_definition sctp_client_statbl[] = {
         .on_departure     = request_read_close,
         .on_read_ready    = request_read,
     }, {
+        .state            = REQUEST_WRITE,
+        .on_arrival       = request_init,
+        .on_departure     = request_read_close,
+        .on_read_ready    = request_read,
+    }, {
         .state            = DONE,
 
-    },{
+    }, {
         .state            = ERROR,
     }
 };
