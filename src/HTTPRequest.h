@@ -222,7 +222,7 @@ struct http_request {
     char * headers;
     in_port_t             dest_port;
     char header_host[MAX_FQDN];
-    uint16_t header_content_length;
+    int header_content_length;
 };
 
 struct http_parser {
