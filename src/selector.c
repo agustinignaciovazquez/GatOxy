@@ -16,7 +16,6 @@
 #include <sys/select.h>
 #include <sys/signal.h>
 #include "selector.h"
-#include "logging.h"
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
 
@@ -338,7 +337,6 @@ selector_register(fd_selector        s,
                      const fd_interest  interest,
                      void *data) {
     selector_status ret = SELECTOR_SUCCESS;
-    
     // 0. validación de argumentos
     if(s == NULL || INVALID_FD(fd) || handler == NULL) {
         ret = SELECTOR_IARGS;
@@ -449,7 +447,6 @@ selector_set_interest_key(struct selector_key *key, fd_interest i) {
  */
 static void
 handle_iteration(fd_selector s) {
-
     int n = s->max_fd;
     struct selector_key key = {
         .s = s,
@@ -537,7 +534,6 @@ finally:
 selector_status
 selector_select(fd_selector s) {
     selector_status ret = SELECTOR_SUCCESS;
-    LOG_DEBUG("selector.c ::: iteration");
 
     memcpy(&s->slave_r, &s->master_r, sizeof(s->slave_r));
     memcpy(&s->slave_w, &s->master_w, sizeof(s->slave_w));
@@ -571,7 +567,6 @@ selector_select(fd_selector s) {
 
         }
     } else {
-        LOG_DEBUG("selector.c ::: handle_iteration");
         handle_iteration(s);
     }
     if(ret == SELECTOR_SUCCESS) {

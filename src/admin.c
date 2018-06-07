@@ -169,19 +169,18 @@ method_check(const uint8_t b, struct admin_parser* p) {
 	char dst[50];
 	sprintf(dst, "method recon::: received >%c<", b);
 	LOG_DEBUG(dst);
-	
-	//primero chequeo byte
-	if (ADMIN_METHOD_STRING[p->request->method][p->i] == b) {
-		p->i++;
-		
-		if (remaining_is_done(p)) {
-			LOG_DEBUG("method recon ::: remaining_is_done");
+	LOG_DEBUG("");
+	if (remaining_is_done(p)) {
+		if (b == CR) { //TODO fixear para no salteo el estado de espacio
+			// remaining_set(p, MAX_URI_LENGTH-1);
 			return admin_done_request;
 		}
-
+		return admin_error_bad_method;
+	}
+	if (METHOD_STRING[p->request->method][p->i] == b) {
+		p->i++;
 		return admin_check_method;
 	}
-
 	return admin_error_bad_method;
 }
 
@@ -222,8 +221,7 @@ admin_consume(buffer *b, struct admin_parser *p, bool *errored) {
 
 extern bool
 admin_is_done(const enum admin_state st, bool *errored) {
-	if (st > admin_done) {
-		LOG_DEBUG("admin.c ::: admin_is_done st>admin_done");
+	if (st > admin_done || errored != 0) {
 		*errored = true;
 	}
 	return st >= admin_done;
@@ -246,20 +244,19 @@ void test_logs();
 void test_with_transformer();
 void test_without_transformer();
 
-// int main () {
+int main () {
 
-// 	LOG_PRIORITY("Starting new test suit of admin.c");
+	LOG_PRIORITY("Starting new test suit of admin.c");
 
-// 	test_unsupported_version();
-// 	test_bad_password();
-// 	test_blank_password();
-// 	test_bad_method();
-// 	test_metrics();
-// 	test_logs();
-// 	test_with_transformer();
-// 	test_without_transformer();
-	
-// }
+	test_unsupported_version();
+	test_bad_password();
+	test_blank_password();
+	test_bad_method();
+	test_metrics();
+	test_logs();
+	test_with_transformer();
+	test_without_transformer();
+}
 
 void test_unsupported_version() {
 	LOG_DEBUG("Testing admin request with unsupported version");

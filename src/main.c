@@ -22,11 +22,9 @@
 #include <sys/socket.h>  // socket
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <netinet/sctp.h>
+// #include <netinet/sctp.h>
 #include "selector.h"
 #include "httpproxynio.h"
-#include "sctpadminnio.h"
-#include "logging.h"
 
 static bool done = false;
 
@@ -39,7 +37,7 @@ sigterm_handler(const int signal) {
 int
 main(const int argc, const char **argv) {
     unsigned port = 1080;
-    unsigned confPort = 1082;
+    unsigned confPort = 1081;
 
     if(argc == 1) {
         // utilizamos el default
@@ -101,19 +99,18 @@ main(const int argc, const char **argv) {
     confAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     confAddr.sin_port        = htons(confPort);
 
-    const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);
     if(confServer < 0) {
         err_msg = "unable to create sctp socket";
         goto finally;
     }
+    // man 7 ip. no importa reportar nada si falla.
+    setsockopt(confServer, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int));
 
     if(bind(confServer, (struct sockaddr*) &confAddr, sizeof(confAddr)) < 0) {
         err_msg = "unable to bind sctp socket";
         goto finally;
     }
-
-    // man 7 ip. no importa reportar nada si falla.
-    setsockopt( confServer, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int));
 
     if (listen(confServer, 20) < 0) {
         err_msg = "unable to listen sctp";
@@ -122,6 +119,7 @@ main(const int argc, const char **argv) {
 
     
     fprintf(stdout, "Listening on SCTP port %d\n", confPort);
+    
 
     // registrar sigterm es útil para terminar el programa normalmente.
     // esto ayuda mucho en herramientas como valgrind.
@@ -166,26 +164,25 @@ main(const int argc, const char **argv) {
     ss = selector_register(selector, server, &socksv5,
                                               OP_READ, NULL);
     if(ss != SELECTOR_SUCCESS) {
-        err_msg = "registering socksv5 fd";
+        err_msg = "registering fd";
         goto finally;
     }
 
     // register master sctp socket TODO
-    const struct fd_handler sctp = {
-        .handle_read       = sctp_passive_accept,
-        .handle_write      = NULL,
-        .handle_close      = NULL, // nada que liberar
-    };
-    ss = selector_register(selector, confServer, &sctp,
-                                              OP_READ, NULL);
-    if(ss != SELECTOR_SUCCESS) {
-        err_msg = "registering sctp fd";
-        goto finally;
-    }
+    // const struct fd_handler socksv5 = {
+    //     .handle_read       = socksv5_passive_accept,
+    //     .handle_write      = NULL,
+    //     .handle_close      = NULL, // nada que liberar
+    // };
+    // ss = selector_register(selector, server, &socksv5,
+    //                                           OP_READ, NULL);
+    // if(ss != SELECTOR_SUCCESS) {
+    //     err_msg = "registering fd";
+    //     goto finally;
+    // }
 
     // start ininite proxy loop
     for(;!done;) {
-        LOG_DEBUG("main.c ::: iteration");
         err_msg = NULL;
         ss = selector_select(selector);
         if(ss != SELECTOR_SUCCESS) {
@@ -215,7 +212,6 @@ finally:
     selector_close();
 
     socksv5_pool_destroy();
-    sctp_pool_destroy();
 
     if(server >= 0) {
         close(server);

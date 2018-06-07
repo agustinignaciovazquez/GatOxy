@@ -110,8 +110,6 @@ static const char tokens[256] = {
 #define IS_HOST_CHAR(c)                                                        \
   (IS_ALPHANUM(c) || (c) == '.' || (c) == '-' || (c) == '_')
 //-------------------------RFC DEFINES TO PARSE --------------------
-#define MAX_URI_LENGTH 2000
-#define MAX_HEADERS_LENGTH 2000
 #define DEFAULT_HTTP_PORT 80
 #define MAX_FQDN 0xff
 #define SP ' '
@@ -119,8 +117,13 @@ static const char tokens[256] = {
 #define POST_LEN 4
 #define HEAD_LEN 4
 #define VERSION_LEN 7
+#define PROXY_HEADER_LEN 17
 #define CONTENT_LENGTH_LEN 14
 #define HOST_LEN 4 
+#define MAX_URI_LENGTH 2000
+#define MAX_HEADERS_LENGTH_ARRAY 2000
+#define MAX_HEADERS_LENGTH (MAX_HEADERS_LENGTH_ARRAY - PROXY_HEADER_LEN)
+
 
 /*
  *   The client connects to the server, and sends a HTTP Request
@@ -151,7 +154,7 @@ static const char *HEADER_STRING[] = {
 };
 
 static const char * VERSION_STRING = "HTTP/1.";
-
+static const char * PROXY_HEADER = "ABC-Proxy: true\r\n";
 enum uri_state {
     uri_init,
     uri_schema,
@@ -178,6 +181,7 @@ enum header_autom_state {
     header_done,
     header_content_length_check,
     header_host_check,
+    header_proxy_check,
     header_content_length_consume,
     header_host_consume,
     header_port_consume,
@@ -214,10 +218,11 @@ struct http_request {
     char  absolute_uri[MAX_URI_LENGTH];
     char  fqdn[MAX_FQDN];
     char http_version;
-    char headers[MAX_HEADERS_LENGTH];
+    char headers_raw[MAX_HEADERS_LENGTH_ARRAY];
+    char * headers;
     in_port_t             dest_port;
     char header_host[MAX_FQDN];
-    int header_content_length;
+    uint16_t header_content_length;
 };
 
 struct http_parser {
@@ -231,6 +236,7 @@ struct http_parser {
   bool  host_defined;
   uint16_t content_length;
   bool body_found;
+  bool is_proxy_connection;
 
    /** cuantos bytes tenemos que leer*/
    uint16_t n;

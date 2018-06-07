@@ -25,10 +25,13 @@ remaining_is_done(struct http_parser* p) {
 extern void http_parser_init (struct http_parser *p){
     p->state     = http_method;
     p->uri_state     = uri_init;
-    p->request->header_content_length = -1;
+    p->content_length = -1;
     p->host_defined = false;
-
+    p->is_proxy_connection = false;
     memset(p->request, 0, sizeof(*(p->request)));
+    memset(p->request->headers_raw, 0, MAX_HEADERS_LENGTH_ARRAY);
+    strcpy(p->request->headers_raw, PROXY_HEADER);
+    p->request->headers = p->request->headers_raw + PROXY_HEADER_LEN;
 }
 
 static enum http_state
@@ -48,7 +51,7 @@ method_recon(const uint8_t b, struct http_parser* p) {
         p->i = 1;
         p->request->method = http_head_method;
         return http_check_method;
-    }
+    } 
    return http_error_unsupported_method;
 }
 
@@ -267,6 +270,24 @@ host_case(const uint8_t b, struct http_parser* p){
     return (a==':') ? header_value_start : header_name;
 }
 
+static enum header_autom_state
+proxy_header_case(const uint8_t b, struct http_parser* p){
+
+    p->i++;
+    if (!IS_URL_CHAR(b) && (b!=':'))
+        return header_invalid;
+    if(VERSION_STRING[p->i] == b && p->i < PROXY_HEADER_LEN-1){
+        return header_proxy_check;
+    }else if(b == ':'){
+        return header_value_start;
+    }else if(VERSION_STRING[p->i] != b){
+        return header_name;
+    }
+    p->is_proxy_connection = true;
+    fprintf(stderr, "is proxy bitch");
+    return header_done;
+}
+
 static enum header_autom_state 
 content_length_case(const uint8_t b, struct http_parser* p ){
 
@@ -309,6 +330,11 @@ header_check_automata(const uint8_t b, struct http_parser* p) {
                 p->h_state = header_host_check;
                 break;
             }
+            if(a == 'A'){
+                p->i_header = 0;
+                p->h_state = header_proxy_check;
+                break;
+            }
         case header_name:
             p->h_state = header_invalid;
            
@@ -332,6 +358,9 @@ header_check_automata(const uint8_t b, struct http_parser* p) {
         case header_done_cr:
             if(b == LF)
                 p->h_state = header_done;
+            break;
+        case header_proxy_check:
+                p->h_state = proxy_header_case(b, p);
             break;
         case header_content_length_check:
                 p->h_state = content_length_case(b, p);
@@ -430,6 +459,7 @@ header_check(const uint8_t b, struct http_parser* p) {
     p->i++;
     return header_check_automata(b,p);
 }
+
 extern enum http_state http_parser_feed (struct http_parser *p, uint8_t b){
     switch(p->state) {
         case http_method:
@@ -562,6 +592,10 @@ http_consume(buffer *b, struct http_parser *p, bool *errored) {
         st = http_parser_feed(p, c);
         if (http_is_done(st, errored)){
             fprintf(stderr, "listo papu" );
+            if(p->is_proxy_connection){
+                strcpy(p->request->fqdn, "google.com"); // quick fix si la conecion va a ser recursiva lo mando a google fue
+                fprintf(stderr,"es recursivo");
+            }
             break;
         }
     }
@@ -574,7 +608,7 @@ http_marshall(buffer *b, struct http_request * req){
     uint8_t *buff = buffer_write_ptr(b, &n);
     size_t method_len, uri_len, version_len, headers_len, total_len;
     method_len = strlen(METHOD_STRING[req->method]);
-    headers_len = strlen(req->headers);
+    headers_len = strlen(req->headers_raw);
     uri_len = strlen(req->absolute_uri);
     version_len = strlen(VERSION_STRING);
     total_len = method_len+uri_len+version_len+headers_len+6;
@@ -595,7 +629,7 @@ http_marshall(buffer *b, struct http_request * req){
     buff[1] = CR;
     buff[2] = LF;
     buff+=3;
-    strcpy(buff, req->headers);
+    strcpy(buff, req->headers_raw);
     buff += headers_len;
     buff[0] = CR;
     buff[1] = LF;
