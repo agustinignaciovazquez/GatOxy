@@ -187,6 +187,22 @@ enum header_autom_state {
     header_port_consume,
     header_content_length_consume_start,
     header_host_consume_start,
+    header_transfer_encoding_case,
+    header_content_length_case,
+    header_content_encoding_case,
+    header_content_type_case,
+    header_charset_case,
+    header_content_encoding_recon,
+    header_content_type_recon,
+    header_charset_recon,
+    header_transfer_encoding_check,
+    header_content_type_check,
+    header_content_encoding_check,
+    header_charset_check,
+    header_transfer_encoding_consume,
+    header_transfer_encoding_consume_start,
+    header_content_encoding_consume_start,
+    header_content_type_consume_start,
 };
 
 enum http_state {
@@ -211,6 +227,13 @@ enum http_state {
     http_error_unsupported_version,
     http_error_no_end,
     http_error_malformed_request,
+    http_sp,
+    http_status_code,
+    http_status_reason,
+    http_error_unsupported_encoding,
+    http_error_unsupported_code,
+    http_error_reason_too_long,
+    http_error_malformed_response,
 };
 
 struct http_request {

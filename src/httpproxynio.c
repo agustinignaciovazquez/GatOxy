@@ -11,6 +11,7 @@
 
 #include "HTTPRequest.h"
 #include "buffer.h"
+#include "HTTPResponsev2.h"
 
 #include "stm.h"
 #include "httpproxynio.h"
@@ -118,9 +119,9 @@ struct request_st {
 
 struct response_st{
 
-   //struct http_response             response;
+    struct http_response             response;
 
-    //struct http_res_parser              parser;
+    struct http_res_parser              parser;
 
 };
 
@@ -162,7 +163,7 @@ struct copy {
 
     struct http_request * request;
 
-    //struct http_response response;
+    struct response_st response;
 
     struct copy *other;
 };
@@ -201,7 +202,6 @@ struct socks5 {
     /** estados para el origin_fd */
     struct connecting         orig_conn;
     struct copy               orig_copy;
-    struct response_st        orig_response;
 
     /** buffers para ser usados read_buffer, write_buffer.*/
     uint8_t * raw_buff_a, * raw_buff_b;
@@ -720,12 +720,12 @@ request_write(struct selector_key *key) {
 ////////////////////////////////////////////////////////////////////////////////
 
 /** inicializa las variables de los estados RESPONSE_… */
-/*static void
+static void
 response_init(struct selector_key *key) {
-    struct response_st * d = &ATTACHMENT(key)->orig_response;
+    struct response_st * d = &ATTACHMENT(key)->orig_copy.response;
     d->parser.response  = &d->response;
     http_res_parser_init (&d->parser);
-}*/
+}
 
 static fd_interest
 copy_compute_interests(fd_selector s, struct copy* d);
@@ -752,6 +752,8 @@ copy_init(const unsigned state, struct selector_key *key) {
     d->wb       = ATTACHMENT(key)->headers_copy;
     d->duplex   = OP_READ | OP_WRITE;
     d->other    = &ATTACHMENT(key)->client_copy;
+
+    response_init(key);
 
 }
 
@@ -804,6 +806,9 @@ copy_r(struct selector_key *key) {
     unsigned ret = COPY;
 
     int * content_length_client = &ATTACHMENT(key)->client_request.request.header_content_length;
+
+    bool  error = false;
+
 
     if(!d->client)
     {
@@ -861,11 +866,18 @@ copy_r(struct selector_key *key) {
         //if(d->client){
            // *content_length_client -= n;
            // fprintf(stderr,"n es %d", *content_length_client);
-        // }
-        if(!d->client){
-            
-        }
+        // } 
         buffer_write_adv(b, n);
+        if(!d->client){
+            int st = http_res_consume(b, &d->response.parser, &error);
+            if(http_res_is_done(st, 0)) {
+                fprintf(stderr, "done reading");
+                if(error){
+                    fprintf(stderr, "error wachen\n" );
+                    return ERROR;//TODO mejorar esto
+                }
+            } 
+        }
     }
     copy_compute_interests(key->s, d);
     copy_compute_interests(key->s, d->other);
