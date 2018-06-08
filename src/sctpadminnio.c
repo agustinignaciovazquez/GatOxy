@@ -1,4 +1,4 @@
-#include<stdio.h>
+#include <stdio.h>
 #include <stdlib.h>  // malloc
 #include <string.h>  // memset
 #include <assert.h>  // assert
@@ -345,17 +345,36 @@ request_read(struct selector_key *key) {
  */
 static unsigned
 request_process(struct selector_key* key, struct request_st* d) {
+
+    // struct request_st * d = &ATTACHMENT(key)->client_request;
     unsigned  ret = REQUEST_WRITE;
-    pthread_t tid;
+    buffer *b     = d->wb;
+    bool  error = false;
+    uint8_t *ptr;
+    size_t  count;
+    size_t  AUXcount;
+    ssize_t  n;
+
+    /**
+    * ptr -> where to write
+    * count -> how much to write
+    */
+    ptr = buffer_write_ptr(b, &count);
 
     //TODO dado el estado al que llegue, 
     // hago lo que tenga que hacer y paso al estado WRITE,
     // dejando en el bf de write lo que hay que devolver.
     switch(d->parser.request->method) {
         case metrics:
-            LOG_DEBUG("request_process ::: metrics");
-            if (proxy_state->port == 1080)
-                LOG_DEBUG("llega bien el proxy state");
+            LOG_DEBUG("ADMIN ::: Metrics command requested");
+            n = snprintf(ptr, count,
+                "****PROXY METRICS****\n"
+                " HTTP port: %d\n"
+                " SCTP port: %d\n"
+                " Transfered bytes: %d\n",
+                proxy_state->port,
+                proxy_state->confPort,
+                proxy_state->bytesTransfered);
             break;
         case logs:
             LOG_DEBUG("request_process ::: logs");
@@ -370,23 +389,15 @@ request_process(struct selector_key* key, struct request_st* d) {
             LOG_DEBUG("request_process ::: unknown");
     }
 
-    // struct selector_key* k = malloc(sizeof(*key));
-    // if(k == NULL) {
-    //     ret       = REQUEST_WRITE;
-    //     d->status = status_general_proxy_server_failure;
-    //     selector_set_interest_key(key, OP_WRITE);
-    // } else {
-    //     memcpy(k, key, sizeof(*k));
-    //     if(-1 == pthread_create(&tid, 0,
-    //                     request_resolv_blocking, k)) {
-    //         ret       = REQUEST_WRITE;
-    //         d->status = status_general_proxy_server_failure;
-    //         selector_set_interest_key(key, OP_WRITE);
-    //     } else{
-    //         ret = REQUEST_RESOLV;
-    //         selector_set_interest_key(key, OP_NOOP);
-    //     }
-    // }
+    /**
+    * notify the buffer we wrote n bytes
+    */
+    buffer_write_adv(b, n);
+    
+    /**
+    * notify selector we want to answer
+    */
+    selector_set_interest_key(key, OP_WRITE);
 
     return ret;
 }
@@ -406,45 +417,8 @@ request_read_close(const unsigned state, struct selector_key *key) {
     // admin_parser_close(&d->parser); TODO descomentar
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// REQUEST CONNECT
-////////////////////////////////////////////////////////////////////////////////
-
-
-// /**
-//  * Computa los intereses en base a la disponiblidad de los buffer.
-//  * La variable duplex nos permite saber si alguna vía ya fue cerrada.
-//  * Arrancá OP_READ | OP_WRITE.
-//  */
-// static fd_interest
-// copy_compute_interests(fd_selector s, struct copy* d) {
-//     fd_interest ret = OP_NOOP;
-//     if ((d->duplex & OP_READ)  && buffer_can_write(d->rb)) {
-//         ret |= OP_READ;
-//     }
-//     if ((d->duplex & OP_WRITE) && buffer_can_read (d->wb)) {
-//         ret |= OP_WRITE;
-//     }
-//     selector_status status = selector_set_interest(s, *d->fd, ret);
-//     if(SELECTOR_SUCCESS != status) {
-//         abort();
-//     }
-//     return ret;
-// }
-
-// /** elige la estructura de copia correcta de cada fd (origin o client) */
-// static struct copy *
-// copy_ptr(struct selector_key *key) {
-//     struct copy * d = &ATTACHMENT(key)->client.copy;
-
-//     if(*d->fd == key->fd) {
-//         // ok
-//     } else {
-//         d = d->other;
-//     }
-//     return  d;
-// }
-
+static unsigned
+request_write(struct selector_key *key);
 /** definición de handlers para cada estado */
 static const struct state_definition sctp_client_statbl[] = {
    {
@@ -454,9 +428,7 @@ static const struct state_definition sctp_client_statbl[] = {
         .on_read_ready    = request_read,
     }, {
         .state            = REQUEST_WRITE,
-        .on_arrival       = request_init,
-        .on_departure     = request_read_close,
-        .on_read_ready    = request_read,
+        .on_write_ready   = request_write,
     }, {
         .state            = DONE,
 
@@ -523,4 +495,36 @@ sctpCli_done(struct selector_key* key) {
             close(fds[i]);
         }
     }
+}
+
+/** escribe todos los bytes de la respuesta al mensaje `request' */
+static unsigned
+request_write(struct selector_key *key) {
+    struct request_st * d = &ATTACHMENT(key)->client.request;
+LOG_DEBUG("sctpadminnio.c ::: request_write ");
+    unsigned  ret       = REQUEST_WRITE;
+    buffer *b         = d->wb;
+    uint8_t *ptr;
+    size_t  count;
+    ssize_t  n;
+
+    // non blocking loop until can write
+    if(buffer_can_read(b) == false) return ret;
+
+    ptr = buffer_read_ptr(b, &count);
+    printf("fd %d\ncount %zu\n", key->fd, count );
+    n = send(key->fd, ptr, count, MSG_NOSIGNAL);
+    if(n == -1) {
+        LOG_ERROR("sctpadminnio.c ::: request_write ::: ERROR");
+        LOG_ERROR(strerror(errno));
+        ret = ERROR;
+    } else {
+        LOG_DEBUG("sctpadminnio.c ::: request_write ::: SUCCESS");
+        buffer_read_adv(b, n);
+        if(!buffer_can_read(b)) {
+            ret = DONE;
+            selector_set_interest    (key->s,  *d->client_fd, OP_NOOP);
+        }
+    }
+    return ret;
 }

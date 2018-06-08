@@ -11,9 +11,7 @@ proxy_state_create() {
 
 	proxy_state = malloc(sizeof(*proxy_state));
 
-
-
-	proxy_state->initial = 0;
+	proxy_state->bytesTransfered = 0;
 	proxy_state->port = 1080;
 	proxy_state->confPort = 1081;
 	proxy_state->do_transform = false;

@@ -4,7 +4,7 @@
 /** general proxy state */
 typedef struct global_proxy_state {
     /** registers the amount of http bytes processed */
-    unsigned                      initial;
+    unsigned                      bytesTransfered;
     
     /** listening ports */
     unsigned port;
