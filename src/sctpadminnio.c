@@ -377,16 +377,33 @@ request_process(struct selector_key* key, struct request_st* d) {
                 proxy_state->bytesTransfered);
             break;
         case logs:
-            LOG_DEBUG("request_process ::: logs");
+            LOG_DEBUG("ADMIN ::: Logs command requested");
+            n = snprintf(ptr, count,"****PROXY LOGS****\n");
+            count -= n;
+            n += LOG_RECOVER(ptr+n, count, PROD_LOG);
             break;
         case enable_transformer:
-            LOG_DEBUG("request_process ::: enable_transformer");
+            LOG_DEBUG("ADMIN ::: Enable transformer requested");
+            proxy_state->do_transform = true;
+            n = snprintf(ptr, count,
+                "****PROXY TRANSFORMER****\n"
+                " STATUS: %s\n"
+                " Command: TEXTO\n"
+                " Filter: TEXTO\n",
+                proxy_state->do_transform?"ON":"OFF");
             break;
         case disable_transformer:
-            LOG_DEBUG("request_process ::: disable_transformer");
+            LOG_DEBUG("ADMIN ::: Disable transformer requested");
+            proxy_state->do_transform = false;
+            n = snprintf(ptr, count,
+                "****PROXY TRANSFORMER****\n"
+                " STATUS: %s\n"
+                " Command: TEXTO\n"
+                " Filter: TEXTO\n",
+                proxy_state->do_transform?"ON":"OFF");
             break;
         default:
-            LOG_DEBUG("request_process ::: unknown");
+            LOG_ERROR("request_process ::: unknown");
     }
 
     /**

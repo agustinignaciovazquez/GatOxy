@@ -54,6 +54,22 @@ void LOG_PRIORITY(char *str) {
   write_to_file(aux, PROD_LOG);
 }
 
+unsigned LOG_RECOVER(char *str, int bytes, char *path) {
+  FILE *fp;
+  fp = fopen(path, "r");
+  if(fp == NULL){
+      return snprintf(str, bytes," LOGS UNAVAILABLE\n");
+   }
+  fseek(fp, 0L, SEEK_END);
+  int sz = ftell(fp);
+  int back = sz - bytes;
+  if (back < 0) back = 0;
+  fseek(fp, back , SEEK_SET);
+  unsigned n = fread(str, sizeof(char), bytes, fp);
+  fclose(fp);
+  return n;
+}
+
 
 
 

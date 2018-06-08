@@ -22,4 +22,9 @@ void LOG_ERROR(char *);
 * Eg: Start of execution, start of tests, exiting, sigterm, etc.
 */
 void LOG_PRIORITY(char *str);
+
+/**
+* Used for recovering last 10 logs.
+*/
+unsigned LOG_RECOVER(char *str, int bytes, char *path);
 #endif
