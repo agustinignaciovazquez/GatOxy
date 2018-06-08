@@ -316,8 +316,8 @@ request_read(struct selector_key *key) {
         fprintf(stderr, "reading");
         buffer_write_adv(b, n);
         int st = admin_consume(b, &d->parser, &error);
-        if(admin_is_done(st, 0)) {
-            fprintf(stderr, "done reading");
+        if(admin_is_done(st, &error)) {
+            LOG_DEBUG("sctpadminnio.c ::: request_read ::: done reading");
             if(error)
                 return ERROR;//TODO mejorar esto
             ret = request_process(key, d);
