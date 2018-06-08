@@ -22,9 +22,10 @@
 #include <sys/socket.h>  // socket
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-// #include <netinet/sctp.h>
+#include <netinet/sctp.h>
 #include "selector.h"
 #include "httpproxynio.h"
+#include "sctpadminnio.h"
 
 static bool done = false;
 
@@ -99,7 +100,7 @@ main(const int argc, const char **argv) {
     confAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     confAddr.sin_port        = htons(confPort);
 
-    const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);
+    const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);;
     if(confServer < 0) {
         err_msg = "unable to create sctp socket";
         goto finally;
@@ -164,22 +165,22 @@ main(const int argc, const char **argv) {
     ss = selector_register(selector, server, &socksv5,
                                               OP_READ, NULL);
     if(ss != SELECTOR_SUCCESS) {
-        err_msg = "registering fd";
+        err_msg = "registering http fd";
         goto finally;
     }
 
     // register master sctp socket TODO
-    // const struct fd_handler socksv5 = {
-    //     .handle_read       = socksv5_passive_accept,
-    //     .handle_write      = NULL,
-    //     .handle_close      = NULL, // nada que liberar
-    // };
-    // ss = selector_register(selector, server, &socksv5,
-    //                                           OP_READ, NULL);
-    // if(ss != SELECTOR_SUCCESS) {
-    //     err_msg = "registering fd";
-    //     goto finally;
-    // }
+    const struct fd_handler sctp = {
+        .handle_read       = sctp_passive_accept,
+        .handle_write      = NULL,
+        .handle_close      = NULL, // nada que liberar
+    };
+    ss = selector_register(selector, confServer, &sctp,
+                                              OP_READ, NULL);
+    if(ss != SELECTOR_SUCCESS) {
+        err_msg = "registering sctp fd";
+        goto finally;
+    }
 
     // start ininite proxy loop
     for(;!done;) {
