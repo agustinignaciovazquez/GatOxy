@@ -32,7 +32,7 @@ enum socks_v5state {
      *     - OP_READ sobre client_fd
      *
      * Transiciones:
-     *   - REQUEST_READ        mientras el mensaje no esté completo
+     *   - REQUEST_READ        mientras el mensaje no estÃ© completo
      *   - REQUEST_RESOLV      se requiere para resolver el hostname
      *   - REQUEST_WRITE       si determinamos que el mensaje no lo podemos
      *                         procesar (ej: no soportamos un comando)
@@ -41,33 +41,33 @@ enum socks_v5state {
     REQUEST_READ,
 
     /**
-     * Espera la resolución DNS
+     * Espera la resoluciÃ³n DNS
      *
      * Intereses:
      *     - OP_NOOP sobre client_fd. Espera un evento de que la tarea bloqueante
-     *               terminó.
+     *               terminÃ³.
      * Transiciones:
-     *     - REQUEST_CONNECTING si se logra resolución al nombre y se puede
-     *                          iniciar la conexión al origin server.
+     *     - REQUEST_CONNECTING si se logra resoluciÃ³n al nombre y se puede
+     *                          iniciar la conexiÃ³n al origin server.
      *     - REQUEST_WRITE      en otro caso
      */
     REQUEST_RESOLV,
 
     /**
-     * Espera que se establezca la conexión al origin server
+     * Espera que se establezca la conexiÃ³n al origin server
      *
      * Intereses:
      *    - OP_WRITE sobre client_fd
      *
      * Transiciones:
-     *    - REQUEST_WRITE    se haya logrado o no establecer la conexión.
+     *    - REQUEST_WRITE    se haya logrado o no establecer la conexiÃ³n.
      *
      */
     REQUEST_CONNECTING,
 
 
     /**
-     * envía la respuesta del `request' al cliente.
+     * envÃ­a la respuesta del `request' al cliente.
      *
      * Intereses:
      *   - OP_WRITE sobre client_fd
@@ -103,12 +103,12 @@ struct request_st {
 
     /** parser */
     struct http_request             request;
-    struct http_parser    		    parser;
+    struct http_parser              parser;
 
     /** el resumen del respuesta a enviar*/
     enum http_response_status status;
 
-    // ¿a donde nos tenemos que conectar?
+    // Â¿a donde nos tenemos que conectar?
     struct sockaddr_storage   *origin_addr;
     socklen_t                 *origin_addr_len;
     int                       *origin_domain;
@@ -156,7 +156,7 @@ struct copy {
     int         *fd;
     /** el buffer que se utiliza para hacer la copia */
     buffer      *rb, *wb;
-    /** ¿cerramos ya la escritura o la lectura? */
+    /** Â¿cerramos ya la escritura o la lectura? */
     fd_interest duplex;
 
     int        client;
@@ -169,17 +169,17 @@ struct copy {
 };
 
 struct socks5 {
-    /** información del cliente */
+    /** informaciÃ³n del cliente */
     struct sockaddr_storage       client_addr;
     socklen_t                     client_addr_len;
     int                           client_fd;
 
-    /** resolución de la dirección del origin server */
+    /** resoluciÃ³n de la direcciÃ³n del origin server */
     struct addrinfo              *origin_resolution;
-    /** intento actual de la dirección del origin server */
+    /** intento actual de la direcciÃ³n del origin server */
     struct addrinfo              *origin_resolution_current;
 
-    /** información del origin server */
+    /** informaciÃ³n del origin server */
     struct sockaddr_storage       origin_addr;
     socklen_t                     origin_addr_len;
     int                           origin_domain;
@@ -217,11 +217,11 @@ struct socks5 {
  * Pool de `struct socks5', para ser reusados.
  *
  * Como tenemos un unico hilo que emite eventos no necesitamos barreras de
- * contención.
+ * contenciÃ³n.
  */
 
-static const unsigned  max_pool  = 50; // tamaño máximo
-static unsigned        pool_size = 0;  // tamaño actual
+static const unsigned  max_pool  = 50; // tamaÃ±o mÃ¡ximo
+static unsigned        pool_size = 0;  // tamaÃ±o actual
 static struct socks5 * pool      = 0;  // pool propiamente dicho
 static const struct state_definition *
 socks5_describe_states(void);
@@ -322,10 +322,10 @@ socksv5_pool_destroy(void) {
     }
 }
 
-/** obtiene el struct (socks5 *) desde la llave de selección  */
+/** obtiene el struct (socks5 *) desde la llave de selecciÃ³n  */
 #define ATTACHMENT(key) ( (struct socks5 *)(key)->data)
 
-/* declaración forward de los handlers de selección de una conexión
+/* declaraciÃ³n forward de los handlers de selecciÃ³n de una conexiÃ³n
  * establecida entre un cliente y el proxy.
  */
 static void socksv5_read   (struct selector_key *key);
@@ -345,7 +345,7 @@ static const struct fd_handler transformation_handler = {
         .handle_write  = transformation_write,
 };
 
-/** Intenta aceptar la nueva conexión entrante*/
+/** Intenta aceptar la nueva conexiÃ³n entrante*/
 void
 socksv5_passive_accept(struct selector_key *key) {
     struct sockaddr_storage       client_addr;
@@ -364,7 +364,7 @@ socksv5_passive_accept(struct selector_key *key) {
     if(state == NULL) {
         // sin un estado, nos es imposible manejaro.
         // tal vez deberiamos apagar accept() hasta que detectemos
-        // que se liberó alguna conexión.
+        // que se liberÃ³ alguna conexiÃ³n.
         printf("Connection failed \n");
         goto fail;
     }
@@ -387,7 +387,7 @@ fail:
 // REQUEST
 ////////////////////////////////////////////////////////////////////////////////
 
-/** inicializa las variables de los estados REQUEST_… */
+/** inicializa las variables de los estados REQUEST_â€¦ */
 static void
 request_init(const unsigned state, struct selector_key *key) {
     struct request_st * d = &ATTACHMENT(key)->client_request;
@@ -449,12 +449,12 @@ request_resolv_blocking(void *data);
 
 /**
  * Procesa el mensaje de tipo `request'.
- * Únicamente soportamos el comando cmd_connect.
+ * Ãšnicamente soportamos el comando cmd_connect.
  *
- * Si tenemos la dirección IP intentamos establecer la conexión.
+ * Si tenemos la direcciÃ³n IP intentamos establecer la conexiÃ³n.
  *
- * Si tenemos que resolver el nombre (operación bloqueante) disparamos
- * la resolución en un thread que luego notificará al selector que ha terminado.
+ * Si tenemos que resolver el nombre (operaciÃ³n bloqueante) disparamos
+ * la resoluciÃ³n en un thread que luego notificarÃ¡ al selector que ha terminado.
  *
  */
 static unsigned
@@ -484,10 +484,10 @@ request_process(struct selector_key* key, struct request_st* d) {
 }
 
 /**
- * Realiza la resolución de DNS bloqueante.
+ * Realiza la resoluciÃ³n de DNS bloqueante.
  *
- * Una vez resuelto notifica al selector para que el evento esté
- * disponible en la próxima iteración.
+ * Una vez resuelto notifica al selector para que el evento estÃ©
+ * disponible en la prÃ³xima iteraciÃ³n.
  */
 static void *
 request_resolv_blocking(void *data) {
@@ -520,7 +520,7 @@ fprintf(stderr, "\nresolving %s:%s\n",s->client_request.request.fqdn, buff);
     return 0;
 }
 
-/** procesa el resultado de la resolución de nombres */
+/** procesa el resultado de la resoluciÃ³n de nombres */
 static unsigned
 request_resolv_done(struct selector_key *key) {
     struct request_st * d = &ATTACHMENT(key)->client_request;
@@ -541,7 +541,7 @@ request_resolv_done(struct selector_key *key) {
     return request_connect(key, d);
 }
 
-/** intenta establecer una conexión con el origin server */
+/** intenta establecer una conexiÃ³n con el origin server */
 static unsigned
 request_connect(struct selector_key *key, struct request_st *d) {
     bool error                  = false;
@@ -560,7 +560,7 @@ request_connect(struct selector_key *key, struct request_st *d) {
     if (-1 == connect(*fd, (const struct sockaddr *)&ATTACHMENT(key)->origin_addr,
                            ATTACHMENT(key)->origin_addr_len)) {
         if(errno == EINPROGRESS) {
-            // es esperable,  tenemos que esperar a la conexión
+            // es esperable,  tenemos que esperar a la conexiÃ³n
 
             // dejamos de de pollear el socket del cliente
             selector_status st = selector_set_interest_key(key, OP_NOOP);
@@ -584,7 +584,7 @@ request_connect(struct selector_key *key, struct request_st *d) {
         }
     } else {
         // estamos conectados sin esperar... no parece posible
-        // saltaríamos directamente a COPY
+        // saltarÃ­amos directamente a COPY
         abort();
     }
 
@@ -621,7 +621,7 @@ request_connecting_init(const unsigned state, struct selector_key *key) {
     d->wb        = &ATTACHMENT(key)->write_buffer;
 }
 
-/** la conexión ha sido establecida (o falló)  */
+/** la conexiÃ³n ha sido establecida (o fallÃ³)  */
 static unsigned
 request_connecting(struct selector_key *key) {
     fprintf(stderr, "connecting");
@@ -664,7 +664,7 @@ log_request(const enum http_response_status status,
     time_t now = 0;
     time(&now);
 
-    // tendriamos que usar gmtime_r pero no está disponible en C99
+    // tendriamos que usar gmtime_r pero no estÃ¡ disponible en C99
     strftime(cbuff, n, "%FT%TZ\t", gmtime(&now));
     size_t len = strlen(cbuff);
     sockaddr_to_human(cbuff + len, N(cbuff) - len, clientaddr);
@@ -719,7 +719,7 @@ request_write(struct selector_key *key) {
 // RESPONSE
 ////////////////////////////////////////////////////////////////////////////////
 
-/** inicializa las variables de los estados RESPONSE_… */
+/** inicializa las variables de los estados RESPONSE_â€¦ */
 static void
 response_init(struct selector_key *key) {
     struct response_st * d = &ATTACHMENT(key)->orig_copy.response;
@@ -759,8 +759,8 @@ copy_init(const unsigned state, struct selector_key *key) {
 
 /**
  * Computa los intereses en base a la disponiblidad de los buffer.
- * La variable duplex nos permite saber si alguna vía ya fue cerrada.
- * Arrancá OP_READ | OP_WRITE.
+ * La variable duplex nos permite saber si alguna vÃ­a ya fue cerrada.
+ * ArrancÃ¡ OP_READ | OP_WRITE.
  */
 static fd_interest
 copy_compute_interests(fd_selector s, struct copy* d) {
@@ -869,14 +869,25 @@ copy_r(struct selector_key *key) {
         // } 
         buffer_write_adv(b, n);
         if(!d->client){
-            int st = http_res_consume(b, &d->response.parser, &error);
-            if(http_res_is_done(st, 0)) {
-                fprintf(stderr, "done reading");
-                if(error){
-                    fprintf(stderr, "error wachen\n" );
-                    return ERROR;//TODO mejorar esto
-                }
-            } 
+            if(http_res_is_done(d->response.parser.state,0) == false){
+                //buffer_write_adv(b, n);
+                int st = http_res_consume(b, &d->response.parser, &error);
+                if(http_res_is_done(st, 0)) {
+                    fprintf(stderr, "done reading");
+                    if(error){
+                        fprintf(stderr, "error wachen\n" );
+                        return ERROR;//TODO mejorar esto
+                    }
+                    if(-1 ==  http_res_marshall(d->other->wb, &(d->response.response))) {
+                        //*d->status = status_general_proxy_server_failure;
+                        fprintf(stderr, "aborto ilegal\n"  );
+                        //abort(); // el buffer tiene que ser mas grande en la variable
+                    }
+                   
+                    
+                }  
+            }
+            
         }
     }
     copy_compute_interests(key->s, d);
@@ -931,7 +942,7 @@ copy_w(struct selector_key *key) {
     }
     return ret;
 }
-/** definición de handlers para cada estado */
+/** definiciÃ³n de handlers para cada estado */
 static const struct state_definition client_statbl[] = {
    {
         .state            = REQUEST_READ,
@@ -966,7 +977,7 @@ socks5_describe_states(void) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Handlers top level de la conexión pasiva.
+// Handlers top level de la conexiÃ³n pasiva.
 // son los que emiten los eventos a la maquina de estados.
 static void
 socksv5_done(struct selector_key* key);

@@ -273,14 +273,14 @@ host_case(const uint8_t b, struct http_parser* p){
 static enum header_autom_state
 proxy_header_case(const uint8_t b, struct http_parser* p){
 
-    p->i++;
+    p->i_header++;
     if (!IS_URL_CHAR(b) && (b!=':'))
         return header_invalid;
-    if(VERSION_STRING[p->i] == b && p->i < PROXY_HEADER_LEN-1){
+    if(PROXY_HEADER[p->i_header] == b && p->i_header < PROXY_HEADER_LEN){
         return header_proxy_check;
     }else if(b == ':'){
         return header_value_start;
-    }else if(VERSION_STRING[p->i] != b){
+    }else if(VERSION_STRING[p->i_header] != b){
         return header_name;
     }
     p->is_proxy_connection = true;
@@ -621,8 +621,6 @@ http_marshall(buffer *b, struct http_request * req){
     buff++;
     strcpy(buff, req->absolute_uri);
     buff += uri_len;
-    //buff[0] = SP;
-    //buff++;
     strcpy(buff, VERSION_STRING);
     buff += version_len;
     buff[0] = req->http_version;

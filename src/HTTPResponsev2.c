@@ -65,6 +65,7 @@ status_code_reason(const uint8_t b, struct http_res_parser * p){
         return http_status_reason;
     }
     if( b==CR ){
+        remaining_set(p, MAX_HEADERS_RESPONSE_LENGTH-1);
         return http_done_cr;
     }
     return http_error_malformed_response;
@@ -91,25 +92,45 @@ version_check(const uint8_t b, struct http_res_parser* p) {
     si no, chequea si es Content-Encoding, si no, es un header cualquiera */
 
 static enum header_autom_state 
-content_length_case(const uint8_t b, struct http_res_parser* p ){
+content_case(const uint8_t b, struct http_res_parser* p ){
 
     int a=toupper(b);
-    p->i_header++;  
+    p->i_header++;
+    if (!IS_URL_CHAR(a) && (a!=':')){
+        return header_invalid;
+    }else if(p->i_header == CONTENT_LEN){
+        if(a == 'L')
+            return header_content_length_case;
+        if(a == 'T')
+            return header_content_type_case;
+        if(a == 'E')
+            return header_content_encoding_case;
+        if(a == ':')
+            return header_value_start;
+        return header_name;
+    }else if(a == CONTENT_STRING[p->i_header]){
+        return header_content_case;
+    }  
+    return (a==':') ? header_value_start : header_name;
+
+}
+
+
+
+static enum header_autom_state 
+content_length_case(const uint8_t b, struct http_res_parser* p ){
+
+
+    int a=toupper(b);
+    p->i_header++;
     if (!IS_URL_CHAR(a) && (a!=':')){
         return header_invalid;
     }else if((p->i_header == CONTENT_LENGTH_LEN) && (a==':')){
         return header_content_length_consume_start;
-    } else if(p->i_header == CONTENT_LENGTH_LEN){
+    }else if(p->i_header == CONTENT_LENGTH_LEN){
         return header_name;
     }else if(a == HEADER_RES_STRING[2][p->i_header]){
-        fprintf(stderr, "parsed %c\n", b);
         return header_content_length_case;
-    }else if(a == HEADER_RES_STRING[3][p->i_header]){
-        fprintf(stderr, "parsed %c\n", b);
-        return header_content_type_case;
-    }else if(a == HEADER_RES_STRING[4][p->i_header]){
-        fprintf(stderr, "parsed %c\n", b);
-        return header_content_encoding_case;
     }  
     return (a==':') ? header_value_start : header_name;
 
@@ -118,21 +139,17 @@ content_length_case(const uint8_t b, struct http_res_parser* p ){
 static enum header_autom_state 
 content_type_case(const uint8_t b, struct http_res_parser* p ){
 
-    int a=toupper(b);
-    p->i_header++;  
+   int a=toupper(b);
+    p->i_header++;
     if (!IS_URL_CHAR(a) && (a!=':')){
         return header_invalid;
     }else if((p->i_header == CONTENT_TYPE_LEN) && (a==':')){
         return header_content_type_consume_start;
-    } else if(p->i_header == CONTENT_TYPE_LEN){
+    }else if(p->i_header == CONTENT_TYPE_LEN){
         return header_name;
     }else if(a == HEADER_RES_STRING[3][p->i_header]){
-        fprintf(stderr, "parsed %c\n", b);
         return header_content_type_case;
-    }else if(a == HEADER_RES_STRING[4][p->i_header]){
-        fprintf(stderr, "parsed %c\n", b);
-        return header_content_encoding_case;
-    }
+    }  
     return (a==':') ? header_value_start : header_name;
 
 }
@@ -223,16 +240,16 @@ type_check(const uint8_t b, struct http_res_parser* p) {
         
         //return http_error_unsupported_encoding;
         return header_invalid;
-    }else if(a == ','){ // se viene otro type
+    }else if(a == ',' || a == ';'){ // se viene otro type
         fprintf(stderr, "parser comma\n");
         p->response->content_types[p->content_types][p->i_type] = 0; //cierro string
         p->content_types++;
         return header_content_type_consume_start;
 
-    }else if(a == ';'){ // lo pongo por si queremos formatear esto de alguna manera pero sigue el mismo flujo
-        fprintf(stderr, "parsed value %c\n", b);
-        p->response->content_types[p->content_types][p->i_type] = b;
-        return header_content_type_check;
+    //}else if(a == ';'){ // lo pongo por si queremos formatear esto de alguna manera pero sigue el mismo flujo (deja la fafa)
+      //  fprintf(stderr, "parsed value %c\n", b);
+        //p->response->content_types[p->content_types][p->i_type] = b;
+        //return header_content_type_check;
     }else if(a == CR ){
         p->response->content_types[p->content_types][p->i_type] = 0;
         fprintf(stderr, "parsed CR\n");
@@ -424,7 +441,7 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
             }
             if(a == 'C'){
                 p->i_header = 0;
-                p->h_state = header_content_length_case;
+                p->h_state = header_content_case;
                 break;
             }
             if(a == 'T'){
@@ -459,6 +476,9 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
                 p->h_state = header_done;
             }
             break;
+        case header_content_case:
+                p->h_state = content_case(b,p);
+                break;
         case header_content_type_case:
                 p->h_state = content_type_case(b,p);
                 break;
@@ -588,7 +608,7 @@ extern enum http_state http_res_parser_feed (struct http_res_parser *p, uint8_t 
         case http_headers_start:
         //ffprintf(stderr, stderr, "http_headers_start consumo %d",b);
             p->h_state = header_init;
-            remaining_set(p, MAX_HEADERS_RESPONSE_LENGTH-1);
+            
             if(b == CR){
                 p->state = http_body_start;
                 break;
@@ -668,37 +688,64 @@ http_res_consume(buffer *b, struct http_res_parser *p, bool *errored) {
         const uint8_t c = buffer_read(b);
         st = http_res_parser_feed(p, c);
         if (http_is_done(st, errored) || p->body_found == true){
+            fprintf(stderr, "%d \n",  p->response->header_content_length);
+            fprintf(stderr, "%s \n",  p->response->content_encodings);
+            fprintf(stderr, "%s \n",  p->response->transfer_encodings);
+            fprintf(stderr, "%s \n",  p->response->content_types[0]);
+            fprintf(stderr, "%s \n",  p->response->content_types[1]);
             break;
         }
     }
     return st;
 }
 
-// /*TODO update*/
-// extern int
-// http_marshall(buffer *b, struct http_response * req){
-//     size_t n;
-//     uint8_t *buff = buffer_write_ptr(b, &n);
-//     size_t method_len, uri_len, version_len;
-//     method_len = strlen(METHOD_STRING[req->method]);
-//     uri_len = strlen(req->absolute_uri);
-//     version_len = strlen("HTTP/1.0");
-//     if(n < method_len+uri_len+version_len+4) {
-//         return -1;
-//     }
-//     strcpy(buff, METHOD_STRING[req->method]);
-//     buff += method_len;
-//     buff[0] = SP;
-//     strcpy(buff+1, req->absolute_uri);
-//     buff += uri_len;
-//     buff[0] = SP;
-//     strcpy(buff+1, "HTTP/1.0");
-//     buff += version_len;
-//     buff[0] = CR;
-//     buff[1] = LF;
-//     buffer_write_adv(b, method_len+uri_len+version_len+4);
-//     return method_len+uri_len+version_len+4;
-// }
+extern int
+http_res_marshall(buffer *b, struct http_response * res){
+    size_t n;
+    uint8_t *buff = buffer_write_ptr(b, &n);
+    size_t size_body;
+    uint8_t *ptr = buffer_read_ptr(b, &size_body);
+    size_t version_len, headers_len, total_len, code_reason_len;
+    headers_len = strlen(res->headers);
+    version_len = strlen(VERSION_STRING);
+    code_reason_len = strlen(res->code_reason);
+    total_len = version_len+headers_len+ STATUS_CODE_LEN+ code_reason_len+7;
+ 
+
+    if(n < total_len) {
+        return -1;
+    }
+
+    strcpy(buff, VERSION_STRING);
+    buff += version_len;
+    buff[0] = res->http_version;
+    buff[1] = SP;   
+    buff+=2;
+    sprintf(buff, "%d", res->status_code);
+    buff += STATUS_CODE_LEN;
+    buff[0] = SP;
+    buff++;
+    strcpy(buff, res->code_reason);
+    buff += code_reason_len;
+    buff[0] = CR;
+    buff[1] = LF;
+    buff+=2;
+    strcpy(buff, res->headers);
+    buff += headers_len;
+    buff[0] = CR;
+    buff[1] = LF;
+    buff+=2;
+    
+    //fixeamos que el body quede despues de los headers
+    buffer_write_adv(b, total_len);
+    for(int i = 0; i < size_body; i++){
+         const uint8_t c = buffer_read(b);
+         buffer_write(b, c);
+    }
+    return total_len;
+
+
+}
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1304,3 +1351,37 @@ void test_response_with_multi_type_formats() {
 //////////////////////////////////////////////////////////////////////////////
 /////////////// COMBINE HEADER TEST //////////////////////////////////////////
 
+
+
+/*
+
+void test_response_nacho_cifuentes(){
+
+    struct http_response response;
+    struct http_res_parser parser = {
+        .response = &response,
+    };
+    http_res_parser_init(&parser);
+    
+    uint8_t data[] = 
+    "HTTP/1.1 200 OK\r\n"
+    "Server: nginx/1.10.3 (Ubuntu)\r\n"
+    "Date: Thu, 07 Jun 2018 23:44:40 GMT\r\n"
+    "Content-Type: text/html\r\n"
+    "Content-Length: 38855\r\n"
+    "Last-Modified: Sun, 29 Apr 2018 18:31:39 GMT\r\n"
+    "Connection: keep-alive\r\n"
+    "ETag: \"5ae60f8b-97c7\"\r\n"
+    "Accept-Ranges: bytes\r\n"
+    "\r\n";
+
+    buffer b;
+    FIXBUF(b, data);
+    bool errored = false;
+    enum http_state st = http_res_consume(&b, &parser, &errored);
+
+    assert(errored);
+    assert(st == http_error_unsupported_version);
+    fprintf(stderr, "NO TE ANDA EL PARSER\n");
+
+}*/
