@@ -16,6 +16,9 @@
 #include "netutils.h"
 #include "buffer_size.h"
 #include "admin.h"
+#include "proxy_state.h"
+
+extern global_proxy_state *proxy_state;
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
 
@@ -351,6 +354,8 @@ request_process(struct selector_key* key, struct request_st* d) {
     switch(d->parser.request->method) {
         case metrics:
             LOG_DEBUG("request_process ::: metrics");
+            if (proxy_state->port == 1080)
+                LOG_DEBUG("llega bien el proxy state");
             break;
         case logs:
             LOG_DEBUG("request_process ::: logs");

@@ -26,12 +26,15 @@
 #include "selector.h"
 #include "httpproxynio.h"
 #include "sctpadminnio.h"
+#include "logging.h"
+#include "proxy_state.h"
 
 static bool done = false;
 
 static void
 sigterm_handler(const int signal) {
     printf("signal %d, cleaning up and exiting\n",signal);
+    LOG_DEBUG("received close signal. Cleaning and exiting!");
     done = true;
 }
 
@@ -39,6 +42,12 @@ int
 main(const int argc, const char **argv) {
     unsigned port = 1080;
     unsigned confPort = 1081;
+
+    LOG_DEBUG("Initializing proxy state");
+    if (proxy_state_create() == false) {
+        LOG_ERROR("failed to init proxy state");
+        return 1;
+    }
 
     if(argc == 1) {
         // utilizamos el default
@@ -213,6 +222,8 @@ finally:
     selector_close();
 
     socksv5_pool_destroy();
+    sctp_pool_destroy();
+    proxy_state_destroy();
 
     if(server >= 0) {
         close(server);
