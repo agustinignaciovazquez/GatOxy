@@ -29,6 +29,8 @@
 #include "logging.h"
 #include "proxy_state.h"
 
+extern global_proxy_state *proxy_state;
+
 static bool done = false;
 
 static void
@@ -40,8 +42,7 @@ sigterm_handler(const int signal) {
 
 int
 main(const int argc, const char **argv) {
-    unsigned port = 1080;
-    unsigned confPort = 1081;
+
 
     LOG_DEBUG("Initializing proxy state");
     if (proxy_state_create() == false) {
@@ -61,7 +62,7 @@ main(const int argc, const char **argv) {
             fprintf(stderr, "port should be an integer: %s\n", argv[1]);
             return 1;
         }
-        port = sl;
+        proxy_state->port = sl;
     } else {
         fprintf(stderr, "Usage: %s <port>\n", argv[0]);
         return 1;
@@ -79,7 +80,7 @@ main(const int argc, const char **argv) {
     memset(&addr, 0, sizeof(addr));
     addr.sin_family      = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port        = htons(port);
+    addr.sin_port        = htons(proxy_state->port);
 
     const int server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if(server < 0) {
@@ -100,14 +101,14 @@ main(const int argc, const char **argv) {
         goto finally;
     }
 
-    fprintf(stdout, "Listening on TCP port %d\n", port);
+    fprintf(stdout, "Listening on TCP port %d\n", proxy_state->port);
 
     //conf SCTP conf server
     struct sockaddr_in confAddr;
     memset(&addr, 0, sizeof(confAddr));
     confAddr.sin_family      = AF_INET;
     confAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    confAddr.sin_port        = htons(confPort);
+    confAddr.sin_port        = htons(proxy_state->confPort);
 
     const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);;
     if(confServer < 0) {
@@ -128,7 +129,7 @@ main(const int argc, const char **argv) {
     }
 
     
-    fprintf(stdout, "Listening on SCTP port %d\n", confPort);
+    fprintf(stdout, "Listening on SCTP port %d\n", proxy_state->confPort);
     
 
     // registrar sigterm es útil para terminar el programa normalmente.
