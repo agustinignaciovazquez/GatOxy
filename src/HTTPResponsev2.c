@@ -65,6 +65,7 @@ status_code_reason(const uint8_t b, struct http_res_parser * p){
         return http_status_reason;
     }
     if( b==CR ){
+        remaining_set(p, MAX_HEADERS_RESPONSE_LENGTH-1);
         return http_done_cr;
     }
     return http_error_malformed_response;
@@ -588,7 +589,7 @@ extern enum http_state http_res_parser_feed (struct http_res_parser *p, uint8_t 
         case http_headers_start:
         //ffprintf(stderr, stderr, "http_headers_start consumo %d",b);
             p->h_state = header_init;
-            remaining_set(p, MAX_HEADERS_RESPONSE_LENGTH-1);
+            
             if(b == CR){
                 p->state = http_body_start;
                 break;
@@ -674,31 +675,53 @@ http_res_consume(buffer *b, struct http_res_parser *p, bool *errored) {
     return st;
 }
 
-// /*TODO update*/
-// extern int
-// http_marshall(buffer *b, struct http_response * req){
-//     size_t n;
-//     uint8_t *buff = buffer_write_ptr(b, &n);
-//     size_t method_len, uri_len, version_len;
-//     method_len = strlen(METHOD_STRING[req->method]);
-//     uri_len = strlen(req->absolute_uri);
-//     version_len = strlen("HTTP/1.0");
-//     if(n < method_len+uri_len+version_len+4) {
-//         return -1;
-//     }
-//     strcpy(buff, METHOD_STRING[req->method]);
-//     buff += method_len;
-//     buff[0] = SP;
-//     strcpy(buff+1, req->absolute_uri);
-//     buff += uri_len;
-//     buff[0] = SP;
-//     strcpy(buff+1, "HTTP/1.0");
-//     buff += version_len;
-//     buff[0] = CR;
-//     buff[1] = LF;
-//     buffer_write_adv(b, method_len+uri_len+version_len+4);
-//     return method_len+uri_len+version_len+4;
-// }
+extern int
+http_res_marshall(buffer *b, struct http_response * res){
+    size_t n;
+    uint8_t *buff = buffer_write_ptr(b, &n);
+    size_t size_body;
+    uint8_t *ptr = buffer_read_ptr(b, &size_body);
+    size_t version_len, headers_len, total_len, code_reason_len;
+    headers_len = strlen(res->headers);
+    version_len = strlen(VERSION_STRING);
+    code_reason_len = strlen(res->code_reason);
+    total_len = version_len+headers_len+ STATUS_CODE_LEN+ code_reason_len+7;
+ 
+
+    if(n < total_len) {
+        return -1;
+    }
+
+    strcpy(buff, VERSION_STRING);
+    buff += version_len;
+    buff[0] = res->http_version;
+    buff[1] = SP;   
+    buff+=2;
+    sprintf(buff, "%d", res->status_code);
+    buff += STATUS_CODE_LEN;
+    buff[0] = SP;
+    buff++;
+    strcpy(buff, res->code_reason);
+    buff += code_reason_len;
+    buff[0] = CR;
+    buff[1] = LF;
+    buff+=2;
+    strcpy(buff, res->headers);
+    buff += headers_len;
+    buff[0] = CR;
+    buff[1] = LF;
+    buff+=2;
+    
+    //fixeamos que el body quede despues de los headers
+    buffer_write_adv(b, total_len);
+    for(int i = 0; i < size_body; i++){
+         const uint8_t c = buffer_read(b);
+         buffer_write(b, c);
+    }
+    return total_len;
+
+
+}
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1304,3 +1327,37 @@ void test_response_with_multi_type_formats() {
 //////////////////////////////////////////////////////////////////////////////
 /////////////// COMBINE HEADER TEST //////////////////////////////////////////
 
+
+
+/*
+
+void test_response_nacho_cifuentes(){
+
+    struct http_response response;
+    struct http_res_parser parser = {
+        .response = &response,
+    };
+    http_res_parser_init(&parser);
+    
+    uint8_t data[] = 
+    "HTTP/1.1 200 OK\r\n"
+    "Server: nginx/1.10.3 (Ubuntu)\r\n"
+    "Date: Thu, 07 Jun 2018 23:44:40 GMT\r\n"
+    "Content-Type: text/html\r\n"
+    "Content-Length: 38855\r\n"
+    "Last-Modified: Sun, 29 Apr 2018 18:31:39 GMT\r\n"
+    "Connection: keep-alive\r\n"
+    "ETag: \"5ae60f8b-97c7\"\r\n"
+    "Accept-Ranges: bytes\r\n"
+    "\r\n";
+
+    buffer b;
+    FIXBUF(b, data);
+    bool errored = false;
+    enum http_state st = http_res_consume(&b, &parser, &errored);
+
+    assert(errored);
+    assert(st == http_error_unsupported_version);
+    fprintf(stderr, "NO TE ANDA EL PARSER\n");
+
+}*/

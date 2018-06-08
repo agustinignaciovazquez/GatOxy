@@ -621,8 +621,6 @@ http_marshall(buffer *b, struct http_request * req){
     buff++;
     strcpy(buff, req->absolute_uri);
     buff += uri_len;
-    //buff[0] = SP;
-    //buff++;
     strcpy(buff, VERSION_STRING);
     buff += version_len;
     buff[0] = req->http_version;
