@@ -192,6 +192,7 @@ enum header_autom_state {
     header_content_encoding_case,
     header_content_type_case,
     header_charset_case,
+    header_content_case,
     header_content_encoding_recon,
     header_content_type_recon,
     header_charset_recon,

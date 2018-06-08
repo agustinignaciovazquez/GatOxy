@@ -17,8 +17,7 @@
 #define CHUNKED_LEN 8
 #define IDENTITY_LEN 9
 /*HEADERS LEN*/
-#define VERSION_LEN 7
-#define CONTENT_LENGTH_LEN 14
+#define CONTENT_LEN 8
 #define TRANSFER_ENCODING_LEN 17 
 #define CONTENT_TYPE_LEN 12
 #define CONTENT_ENCODING_LEN 16
@@ -110,6 +109,7 @@ static const char *CHARSET_STRINGS[] = {
     NULL, "UTF-8", "US-ASCII", "ISO-8859-1"
 };
 
+static const char * CONTENT_STRING = "CONTENT-";
 
 /* STRUCT HTTP_RESPONSE
     @http_version guarda el caracter de la version despues del punto

@@ -1,0 +1,49 @@
+HTTP/1.1 200 OK
+Server: nginx/1.10.3 (Ubuntu)
+Date: Thu, 07 Jun 2018 23:44:40 GMT
+Content-Type: text/html, application/jsp
+Content-Length: 38855
+Transfer-Encoding: chunked
+Content-Encoding: identity
+Last-Modified: Sun, 29 Apr 2018 18:31:39 GMT
+Connection: keep-alive
+ETag: \"5ae60f8b-97c7\"
+Accept-Ranges: bytes
+
+<HTML>
+
+<HEAD>
+
+<TITLE>Your Title Here</TITLE>
+
+</HEAD>
+
+<BODY BGCOLOR="FFFFFF">
+
+<CENTER><IMG SRC="clouds.jpg" ALIGN="BOTTOM"> </CENTER>
+
+<HR>
+
+<a href="http://somegreatsite.com">Link Name</a>
+
+is a link to another nifty site
+
+<H1>This is a Header</H1>
+
+<H2>This is a Medium Header</H2>
+
+Send me mail at <a href="mailto:support@yourcompany.com">
+
+support@yourcompany.com</a>.
+
+<P> This is a new paragraph!
+
+<P> <B>This is a new paragraph!</B>
+
+<BR> <B><I>This is a new sentence without a paragraph break, in bold italics.</I></B>
+
+<HR>
+
+</BODY>
+
+</HTML> 

@@ -92,25 +92,45 @@ version_check(const uint8_t b, struct http_res_parser* p) {
     si no, chequea si es Content-Encoding, si no, es un header cualquiera */
 
 static enum header_autom_state 
-content_length_case(const uint8_t b, struct http_res_parser* p ){
+content_case(const uint8_t b, struct http_res_parser* p ){
 
     int a=toupper(b);
-    p->i_header++;  
+    p->i_header++;
+    if (!IS_URL_CHAR(a) && (a!=':')){
+        return header_invalid;
+    }else if(p->i_header == CONTENT_LEN){
+        if(a == 'L')
+            return header_content_length_case;
+        if(a == 'T')
+            return header_content_type_case;
+        if(a == 'E')
+            return header_content_encoding_case;
+        if(a == ':')
+            return header_value_start;
+        return header_name;
+    }else if(a == CONTENT_STRING[p->i_header]){
+        return header_content_case;
+    }  
+    return (a==':') ? header_value_start : header_name;
+
+}
+
+
+
+static enum header_autom_state 
+content_length_case(const uint8_t b, struct http_res_parser* p ){
+
+
+    int a=toupper(b);
+    p->i_header++;
     if (!IS_URL_CHAR(a) && (a!=':')){
         return header_invalid;
     }else if((p->i_header == CONTENT_LENGTH_LEN) && (a==':')){
         return header_content_length_consume_start;
-    } else if(p->i_header == CONTENT_LENGTH_LEN){
+    }else if(p->i_header == CONTENT_LENGTH_LEN){
         return header_name;
     }else if(a == HEADER_RES_STRING[2][p->i_header]){
-        fprintf(stderr, "parsed %c\n", b);
         return header_content_length_case;
-    }else if(a == HEADER_RES_STRING[3][p->i_header]){
-        fprintf(stderr, "parsed %c\n", b);
-        return header_content_type_case;
-    }else if(a == HEADER_RES_STRING[4][p->i_header]){
-        fprintf(stderr, "parsed %c\n", b);
-        return header_content_encoding_case;
     }  
     return (a==':') ? header_value_start : header_name;
 
@@ -119,21 +139,17 @@ content_length_case(const uint8_t b, struct http_res_parser* p ){
 static enum header_autom_state 
 content_type_case(const uint8_t b, struct http_res_parser* p ){
 
-    int a=toupper(b);
-    p->i_header++;  
+   int a=toupper(b);
+    p->i_header++;
     if (!IS_URL_CHAR(a) && (a!=':')){
         return header_invalid;
     }else if((p->i_header == CONTENT_TYPE_LEN) && (a==':')){
         return header_content_type_consume_start;
-    } else if(p->i_header == CONTENT_TYPE_LEN){
+    }else if(p->i_header == CONTENT_TYPE_LEN){
         return header_name;
     }else if(a == HEADER_RES_STRING[3][p->i_header]){
-        fprintf(stderr, "parsed %c\n", b);
         return header_content_type_case;
-    }else if(a == HEADER_RES_STRING[4][p->i_header]){
-        fprintf(stderr, "parsed %c\n", b);
-        return header_content_encoding_case;
-    }
+    }  
     return (a==':') ? header_value_start : header_name;
 
 }
@@ -224,16 +240,16 @@ type_check(const uint8_t b, struct http_res_parser* p) {
         
         //return http_error_unsupported_encoding;
         return header_invalid;
-    }else if(a == ','){ // se viene otro type
+    }else if(a == ',' || a == ';'){ // se viene otro type
         fprintf(stderr, "parser comma\n");
         p->response->content_types[p->content_types][p->i_type] = 0; //cierro string
         p->content_types++;
         return header_content_type_consume_start;
 
-    }else if(a == ';'){ // lo pongo por si queremos formatear esto de alguna manera pero sigue el mismo flujo
-        fprintf(stderr, "parsed value %c\n", b);
-        p->response->content_types[p->content_types][p->i_type] = b;
-        return header_content_type_check;
+    //}else if(a == ';'){ // lo pongo por si queremos formatear esto de alguna manera pero sigue el mismo flujo (deja la fafa)
+      //  fprintf(stderr, "parsed value %c\n", b);
+        //p->response->content_types[p->content_types][p->i_type] = b;
+        //return header_content_type_check;
     }else if(a == CR ){
         p->response->content_types[p->content_types][p->i_type] = 0;
         fprintf(stderr, "parsed CR\n");
@@ -425,7 +441,7 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
             }
             if(a == 'C'){
                 p->i_header = 0;
-                p->h_state = header_content_length_case;
+                p->h_state = header_content_case;
                 break;
             }
             if(a == 'T'){
@@ -460,6 +476,9 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
                 p->h_state = header_done;
             }
             break;
+        case header_content_case:
+                p->h_state = content_case(b,p);
+                break;
         case header_content_type_case:
                 p->h_state = content_type_case(b,p);
                 break;
@@ -669,6 +688,11 @@ http_res_consume(buffer *b, struct http_res_parser *p, bool *errored) {
         const uint8_t c = buffer_read(b);
         st = http_res_parser_feed(p, c);
         if (http_is_done(st, errored) || p->body_found == true){
+            fprintf(stderr, "%d \n",  p->response->header_content_length);
+            fprintf(stderr, "%s \n",  p->response->content_encodings);
+            fprintf(stderr, "%s \n",  p->response->transfer_encodings);
+            fprintf(stderr, "%s \n",  p->response->content_types[0]);
+            fprintf(stderr, "%s \n",  p->response->content_types[1]);
             break;
         }
     }
