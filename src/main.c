@@ -109,7 +109,7 @@ main(const int argc, const char **argv) {
     confAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     confAddr.sin_port        = htons(confPort);
 
-    const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);;
+    const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);;
     if(confServer < 0) {
         err_msg = "unable to create sctp socket";
         goto finally;
