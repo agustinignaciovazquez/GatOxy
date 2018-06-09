@@ -110,7 +110,6 @@ static const char *CHARSET_STRINGS[] = {
 };
 
 static const char * CONTENT_STRING = "CONTENT-";
-
 /* STRUCT HTTP_RESPONSE
     @http_version guarda el caracter de la version despues del punto
     @headers string que guarda todos los header con sus valores
