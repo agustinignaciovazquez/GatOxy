@@ -603,16 +603,18 @@ http_consume(buffer *b, struct http_parser *p, bool *errored) {
 }
 
 extern int
-http_marshall(buffer *b, struct http_request * req){
+http_marshall(buffer *b, struct http_request * req, buffer *b2){
     size_t n;
     uint8_t *buff = buffer_write_ptr(b, &n);
+    size_t size_body;
+    uint8_t *ptr = buffer_read_ptr(b2, &size_body);
     size_t method_len, uri_len, version_len, headers_len, total_len;
     method_len = strlen(METHOD_STRING[req->method]);
     headers_len = strlen(req->headers_raw);
     uri_len = strlen(req->absolute_uri);
     version_len = strlen(VERSION_STRING);
     total_len = method_len+uri_len+version_len+headers_len+6;
-    if(n < total_len) {
+    if(n < total_len+size_body) {
         return -1;
     }
     strcpy(buff, METHOD_STRING[req->method]);
@@ -631,7 +633,13 @@ http_marshall(buffer *b, struct http_request * req){
     buff += headers_len;
     buff[0] = CR;
     buff[1] = LF;
-	buffer_write_adv(b, total_len);
+    
+    //fixeamos que el body quede despues de los headers
+    buffer_write_adv(b, total_len);
+    for(int i = 0; i < size_body; i++){
+         const uint8_t c = buffer_read(b2);
+         buffer_write(b, c);
+    }
     return total_len;
 }
 

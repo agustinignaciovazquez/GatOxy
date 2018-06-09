@@ -23,6 +23,8 @@ remaining_is_done(struct http_res_parser* p) {
 
 /* TODO : chequear inicializacion */
 extern void http_res_parser_init (struct http_res_parser *p){
+    
+    p->body_found = 0;
     p->state     = http_version;
     p->content_length = -1;
     p->transfer_encodings = 0;
@@ -59,7 +61,7 @@ status_code_reason(const uint8_t b, struct http_res_parser * p){
         }
         return http_error_reason_too_long;
     }
-    if(IS_URL_CHAR(b)){
+    if(IS_URL_CHAR(b) || b == SP){
         p->response->code_reason[p->i] = b;
         p->i++;
         return http_status_reason;
@@ -73,6 +75,7 @@ status_code_reason(const uint8_t b, struct http_res_parser * p){
 
 static enum http_state
 version_check(const uint8_t b, struct http_res_parser* p) {
+
     if(remaining_is_done(p)){
         if(b == '1' || b == '0'){
             p->response->http_version = b;
@@ -451,10 +454,11 @@ header_check(const uint8_t b, struct http_res_parser* p) {
 
 /*TODO: change flow */
 extern enum http_state http_res_parser_feed (struct http_res_parser *p, uint8_t b){
+    fprintf(stderr, "%c\n", b);
+
     switch(p->state) {
         /*FIRST*/
         case http_version:
-        //ffprintf(stderr, stderr, "http_version consumo %c",b);
             p->state = version_check(b,p);
             break;
         case http_sp:
@@ -614,6 +618,7 @@ http_res_marshall(buffer *b, struct http_response * res){
     buff[0] = CR;
     buff[1] = LF;
     buff+=2;
+
     
     //fixeamos que el body quede despues de los headers
     buffer_write_adv(b, total_len);

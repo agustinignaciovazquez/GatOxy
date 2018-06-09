@@ -3,7 +3,7 @@
 
 #include <limits.h>
 
-#define DEFAULT_BUFFER_SIZE 4*1024
+#define DEFAULT_BUFFER_SIZE 4*1024*1024
 
 int
 get_buffer_size();

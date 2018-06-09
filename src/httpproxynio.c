@@ -509,7 +509,7 @@ request_resolv_blocking(void *data) {
     char buff[7];
     snprintf(buff, sizeof(buff), "%d",
              ntohs(s->client_request.request.dest_port));
-fprintf(stderr, "\nresolving %s:%s\n",s->client_request.request.fqdn, buff);
+    fprintf(stderr, "\nresolving %s:%s\n",s->client_request.request.fqdn, buff);
     getaddrinfo(s->client_request.request.fqdn, buff, &hints,
                &s->origin_resolution);
 
@@ -589,11 +589,13 @@ request_connect(struct selector_key *key, struct request_st *d) {
     }
 
 finally:
+    fprintf(stderr, "FINALLY CONNECT\n" );
     if (error) {
         if (*fd != -1) {
             close(*fd);
             *fd = -1;
         }
+        
     }
 
     d->status = status;
@@ -630,19 +632,20 @@ request_connecting(struct selector_key *key) {
     struct connecting *d  = &ATTACHMENT(key)->orig_conn;
     struct request_st * d1 = &ATTACHMENT(key)->client_request;
     if (getsockopt(key->fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
-        *d->status = status_general_proxy_server_failure;
-        return ERROR;
+        selector_set_interest(key->s,key->fd, OP_WRITE);
+        return REQUEST_WRITE;
     } else {
         if(error == 0) {
             *d->status     = status_succeeded;
             *d->origin_fd = key->fd;
         } else {
-            *d->status = errno_to_socks(error);
-            return ERROR;
+            //*d->status = errno_to_socks(error);
+            selector_set_interest(key->s,key->fd, OP_WRITE);
+            return REQUEST_WRITE;
         }
     }
-
-    if(-1 == http_marshall(ATTACHMENT(key)->headers_copy, &(d1->request))) {
+    buffer *b2   = d1->rb;
+    if(-1 == http_marshall(ATTACHMENT(key)->headers_copy, &(d1->request), b2)) {
         *d->status = status_general_proxy_server_failure;
         abort(); // el buffer tiene que ser mas grande en la variable
     }
@@ -687,9 +690,10 @@ request_write(struct selector_key *key) {
     uint8_t *ptr;
     size_t  count;
     ssize_t  n;
-
-    ptr = buffer_read_ptr(b, &count);
-    n = send(key->fd, ptr, count, MSG_NOSIGNAL);
+    char * msg = "ERROR 500 WACHO";
+   // ptr = buffer_read_ptr(b, &count);
+    n = send(key->fd,msg, strlen(msg),0);
+   // n = send(key->fd, ptr, count, MSG_NOSIGNAL);
     if(n == -1) {
         ret = ERROR;
     } else {
@@ -883,8 +887,10 @@ copy_r(struct selector_key *key) {
                         fprintf(stderr, "aborto ilegal\n"  );
                         //abort(); // el buffer tiene que ser mas grande en la variable
                     }
-                   
-                    
+                    d->response.parser.content_length -= n;
+                    if (d->response.parser.content_length<=0){
+                        response_init(key);
+                    }
                 }  
             }
             

@@ -246,7 +246,7 @@ struct http_request {
     char * headers;
     in_port_t             dest_port;
     char header_host[MAX_FQDN];
-    int header_content_length;
+    uint32_t header_content_length;
 };
 
 struct http_parser {
@@ -258,7 +258,7 @@ struct http_parser {
   uint16_t i_host;
   uint16_t i_header;
   bool  host_defined;
-  uint16_t content_length;
+  uint32_t content_length;
   bool body_found;
   bool is_proxy_connection;
 
@@ -311,7 +311,7 @@ void http_parser_close(struct http_parser *p);
  * espacio suficiente.
  */
 int
-http_marshall(buffer *b, struct http_request * req);
+http_marshall(buffer *b, struct http_request * req, buffer *b2);
 
 enum http_response_status {
     status_succeeded                          = 0x00,
