@@ -51,19 +51,23 @@ enum admin_method {
     metrics = 0x01,
     logs = 0x02,
     enable_transformer = 0x03,
-    disable_transformer = 0x04
+    disable_transformer = 0x04,
+    command_transformer = 0x05,
+    type_transformer = 0x06
 };
 
 #define METRICS_LEN 7
 #define LOGS_LEN 4
 #define ENABLE_TRANSFORMER_LEN 18
 #define DISABLE_TRANSFORMER_LEN 19
+#define COMMAND_TRANSFORMER_LEN 19
+#define TYPE_TRANSFORMER_LEN 16
 #define SP ' '
 #define CR '\r'
 #define LF '\n'
 
 static const char *ADMIN_METHOD_STRING[] = {
-    NULL, "metrics", "logs", "enable_transformer", "disable_transformer"
+    NULL, "metrics", "logs", "enable_transformer", "disable_transformer", "command_transformer", "type_transformer"
 };
 
 struct admin_request {

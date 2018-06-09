@@ -15,8 +15,10 @@ proxy_state_create() {
 	proxy_state->port = 1080;
 	proxy_state->confPort = 1081;
 	proxy_state->do_transform = false;
-	// proxy_state->transformation_command;
-	// proxy_state->transformation_types;
+	proxy_state->transformation_command_index=0;
+	proxy_state->transformation_types_index=0;
+	proxy_state->transformation_command[1]= '\0';
+	proxy_state->transformation_types[1] = '\0';
 
 	return true;
 }

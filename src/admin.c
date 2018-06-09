@@ -6,11 +6,15 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "admin.h"
+#include "proxy_state.h"
+
+extern global_proxy_state *proxy_state;
 
 static enum admin_state version_check(const uint8_t b, struct admin_parser* p);
 static enum admin_state password_check(const uint8_t b, struct admin_parser* p);
 static enum admin_state method_recon(const uint8_t b, struct admin_parser* p);
 static enum admin_state method_check(const uint8_t b, struct admin_parser* p);
+static enum admin_state parse_data(const uint8_t b, struct admin_parser* p);
 static void remaining_set(struct admin_parser* p, const int n);
 static int remaining_is_done(struct admin_parser* p);
 /**
@@ -58,8 +62,7 @@ admin_parser_feed (struct admin_parser *p, uint8_t b) {
 				p->state = admin_data;
 			break;
 		case admin_data:
-			// p->state = parse_data(b, p);
-			p->state = admin_done_field_data;
+			p->state = parse_data(b, p);
 			break;
 		case admin_done_field_data:
 			p->state = admin_error_bad_request;
@@ -157,6 +160,16 @@ method_recon(const uint8_t b, struct admin_parser* p) {
 		p->i = 1;
 		p->request->method = disable_transformer;
 		return admin_check_method;
+	} else if ('c' == b) {
+		remaining_set(p, COMMAND_TRANSFORMER_LEN);
+		p->i = 1;
+		p->request->method = command_transformer;
+		return admin_check_method;
+	} else if ('t' == b) {
+		remaining_set(p, TYPE_TRANSFORMER_LEN);
+		p->i = 1;
+		p->request->method = type_transformer;
+		return admin_check_method;
 	}
 	return admin_error_bad_method;
 }
@@ -166,23 +179,51 @@ method_recon(const uint8_t b, struct admin_parser* p) {
 */
 static enum admin_state
 method_check(const uint8_t b, struct admin_parser* p) {
-	char dst[50];
-	sprintf(dst, "method recon::: received >%c<", b);
-	LOG_DEBUG(dst);
-	
+
 	//primero chequeo byte
 	if (ADMIN_METHOD_STRING[p->request->method][p->i] == b) {
 		p->i++;
 		
 		if (remaining_is_done(p)) {
-			LOG_DEBUG("method recon ::: remaining_is_done");
-			return admin_done_request;
+			if (p->request->method == type_transformer || p->request->method == command_transformer)
+				return admin_done_field_method;
+			else
+				return admin_done_request;
 		}
 
 		return admin_check_method;
 	}
 
 	return admin_error_bad_method;
+}
+
+/**
+* Copy data of message
+*/
+static enum admin_state
+parse_data(const uint8_t b, struct admin_parser* p) {
+	char dst[50];
+	sprintf(dst, "parser data::: received >%c<", b);
+	LOG_DEBUG(dst);
+	
+	// check if finished
+	if (CR == b) return admin_done_request;
+	if (LF == b) return admin_done;
+
+	// write to var
+	if (p->request->method == type_transformer && proxy_state->transformation_types_index < 29) {
+		proxy_state->transformation_types[proxy_state->transformation_types_index] = b;
+		proxy_state->transformation_types_index++;
+		proxy_state->transformation_types[proxy_state->transformation_types_index] = '\0';
+		return admin_data;
+	} else if (p->request->method == command_transformer && proxy_state->transformation_command_index < 29) {
+		proxy_state->transformation_command[proxy_state->transformation_command_index] = b;
+		proxy_state->transformation_command_index++;
+		proxy_state->transformation_command[proxy_state->transformation_command_index] = '\0';
+		return admin_data;
+	}
+
+	return admin_error_bad_request;
 }
 
 /**

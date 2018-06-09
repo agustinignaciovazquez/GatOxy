@@ -10,18 +10,17 @@ typedef struct global_proxy_state {
     unsigned port;
     unsigned confPort;
 
-    /** logs */
-    char dev_log[30];
-    char prod_log[30];
-
     /** transformation enabled */
     bool do_transform;
 
     /** transformation command */
-    char *transformation_command;
+    char transformation_command[30];
+    int transformation_command_index;
 
     /** transformation command */
-    char *transformation_types;
+    char transformation_types[30];
+    int transformation_types_index;
+
 } global_proxy_state;
 
 /** create proxy state */

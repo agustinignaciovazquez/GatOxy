@@ -388,9 +388,11 @@ request_process(struct selector_key* key, struct request_st* d) {
             n = snprintf(ptr, count,
                 "****PROXY TRANSFORMER****\n"
                 " STATUS: %s\n"
-                " Command: TEXTO\n"
-                " Filter: TEXTO\n",
-                proxy_state->do_transform?"ON":"OFF");
+                " Command: %s\n"
+                " Filter: %s\n",
+                proxy_state->do_transform?"ON":"OFF",
+                proxy_state->transformation_command,
+                proxy_state->transformation_types);
             break;
         case disable_transformer:
             LOG_DEBUG("ADMIN ::: Disable transformer requested");
@@ -398,9 +400,33 @@ request_process(struct selector_key* key, struct request_st* d) {
             n = snprintf(ptr, count,
                 "****PROXY TRANSFORMER****\n"
                 " STATUS: %s\n"
-                " Command: TEXTO\n"
-                " Filter: TEXTO\n",
-                proxy_state->do_transform?"ON":"OFF");
+                " Command: %s\n"
+                " Filter: %s\n",
+                proxy_state->do_transform?"ON":"OFF",
+                proxy_state->transformation_command,
+                proxy_state->transformation_types);
+            break;
+        case command_transformer:
+            LOG_DEBUG("ADMIN ::: Command transformer requested");
+            n = snprintf(ptr, count,
+                "****PROXY TRANSFORMER****\n"
+                " STATUS: %s\n"
+                " Command: %s\n"
+                " Filter: %s\n",
+                proxy_state->do_transform?"ON":"OFF",
+                proxy_state->transformation_command,
+                proxy_state->transformation_types);
+            break;
+        case type_transformer:
+            LOG_DEBUG("ADMIN ::: Type transformer requested");
+            n = snprintf(ptr, count,
+                "****PROXY TRANSFORMER****\n"
+                " STATUS: %s\n"
+                " Command: %s\n"
+                " Filter: %s\n",
+                proxy_state->do_transform?"ON":"OFF",
+                proxy_state->transformation_command,
+                proxy_state->transformation_types);
             break;
         default:
             LOG_ERROR("request_process ::: unknown");
