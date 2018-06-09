@@ -11,22 +11,14 @@
 //-------------------------RFC DEFINES TO PARSE --------------------
 #define MAX_HEADERS_RESPONSE_LENGTH 2000
 /*ENCODING LEN*/
-#define GZIP_LEN 5
-#define DEFLATE_LEN 8
-#define COMPRESS_LEN 9
-#define CHUNKED_LEN 8
-#define IDENTITY_LEN 9
+#define CHUNKED_LEN 7
+#define IDENTITY_LEN 8
 /*HEADERS LEN*/
 #define CONTENT_LEN 8
 #define TRANSFER_ENCODING_LEN 17 
 #define CONTENT_TYPE_LEN 12
 #define CONTENT_ENCODING_LEN 16
-/*TYPES LEN*/
-#define TEXT_PLAIN_LEN 10
-#define IMG_LEN 5 // IMG/
-#define APP_OCTET_LEN 24 // application/octet-stream
-#define JPEG_LEN 4
-#define PNG_LEN 3
+
 /*PARSER LEN*/
 #define STATUS_CODE_LEN 3
 #define MAX_REASON_LENGTH 25
@@ -35,11 +27,6 @@
 #define MAX_CHARSET_LEN 15
 #define MAX_TYPES 4
 #define MAX_TYPES_LEN 50
-/*CHARSET LEN*/
-#define CHARSET_LEN 8
-#define UTF_LEN 5
-#define US_ASCII_LEN 8
-#define ISO_LEN 10 
 
 /*ENCODINGS*/
 #define IDENTITY 1
@@ -48,17 +35,7 @@
 #define COMPRESS 3
 #define CHUNKED 4 
 
-/*CHARSET*/
-#define UTF 1
-#define US_ASCII 2
-#define ISO 3
 
-/*TYPES*/
-#define TEXT_PLAIN 1
-#define IMG 2
-#define JPEG 3
-#define PNG 4
-#define APP_OCTET 5
 
 /*
  *   The client connects to the server, and sends a HTTP Request
@@ -92,21 +69,8 @@ static const char *ENCODING_STRING[] ={
     NULL, "GZIP", "DEFLATE", "COMPRESS", "CHUNKED"
 };
 
-//AGREGAR LOS QUE FALTAN
-static const char *TYPE_STRING[] = {
-    NULL, "TEXT/PLAIN", "IMG/", "IMG/JPEG", "IMG/PNG", "APPLICATION/OCTET-STREAM"
-};
-
 static const char *CONTENT_ENCODING_STRING[] = {
     NULL, "IDENTITY"
-};
-
-static const char *CHARSET_STRING[] = {
-    NULL, "CHARSET"
-};
-
-static const char *CHARSET_STRINGS[] = {
-    NULL, "UTF-8", "US-ASCII", "ISO-8859-1"
 };
 
 static const char * CONTENT_STRING = "CONTENT-";
@@ -124,8 +88,6 @@ struct http_response {
     char http_version; 
     char headers[MAX_HEADERS_RESPONSE_LENGTH];
     uint16_t header_content_length;
-    char transfer_encodings[MAX_ENCODING_LEN]; // solo puedo tener un transfer encoding
-    char content_encodings[MAX_ENCODING_LEN]; // solo puedo tener un content encoding
     char content_types[MAX_TYPES][MAX_TYPES_LEN]; 
     char code_reason[MAX_REASON_LENGTH];
     int status_code;
