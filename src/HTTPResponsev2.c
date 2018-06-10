@@ -22,8 +22,9 @@ remaining_is_done(struct http_res_parser* p) {
 }
 
 /* TODO : chequear inicializacion */
-extern void http_res_parser_init (struct http_res_parser *p){
+extern void http_res_parser_init (struct http_res_parser *p, struct buffer * b){
     
+    p->buffer_output = b;
     p->body_found = 0;
     p->state     = http_version;
     p->content_length = -1;
@@ -569,6 +570,8 @@ http_res_consume(buffer *b, struct http_res_parser *p, bool *errored) {
 
     while(buffer_can_read(b)) { // si ya estamos por leer body no consumimos mas y se lo pasamos directamente al origin!
         const uint8_t c = buffer_read(b);
+        buffer_write(p->buffer_output , c);
+        fprintf(stderr, "CONSUMO %c\n", c);
         st = http_res_parser_feed(p, c);
         if (http_is_done(st, errored) || p->body_found == true){
             fprintf(stderr, "CONTENT LENGTH = %d \n",  p->response->header_content_length);
@@ -583,7 +586,7 @@ http_res_consume(buffer *b, struct http_res_parser *p, bool *errored) {
 }
 
 extern int
-http_res_marshall(buffer *b, struct http_response * res){
+http_res_marshall(buffer *b, struct http_response * res, buffer * b2){
     size_t n;
     uint8_t *buff = buffer_write_ptr(b, &n);
     size_t size_body;

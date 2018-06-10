@@ -110,6 +110,7 @@ struct http_response {
     @body_found true si hay un body
 */
 struct http_res_parser {
+  struct buffer * buffer_output;
   struct http_response *response;
   enum http_state state;
   enum header_autom_state h_state;
@@ -135,7 +136,7 @@ struct http_res_parser {
 };
 
 /** inicializa el parser */
-void http_res_parser_init (struct http_res_parser *p);
+void http_res_parser_init (struct http_res_parser *p, struct buffer * b);
 
 /** entrega un byte al parser. retorna true si se llego al final  */
 enum http_state http_res_parser_feed (struct http_res_parser *p, uint8_t b);
@@ -170,7 +171,7 @@ void http_res_parser_close(struct http_res_parser *p);
  * espacio suficiente.
  */
 int
-http_res_marshall(buffer *b, struct http_response * res);
+http_res_marshall(buffer *b, struct http_response * res, buffer * b2);
 
 
 /* TEST SUITE */

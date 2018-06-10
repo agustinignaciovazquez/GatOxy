@@ -3,6 +3,9 @@
 static int
 buffer_size = DEFAULT_BUFFER_SIZE;
 
+static int
+headers_buffer_size = HEADERS_BUFFER_SIZE;
+
 int
 get_buffer_size(){
     return buffer_size;
@@ -17,4 +20,10 @@ update_buffer_size(int new_buffer_size){
     buffer_size = new_buffer_size;
 
     return 0;
+}
+
+
+int
+get_headers_buffer_size(){
+    return headers_buffer_size;
 }

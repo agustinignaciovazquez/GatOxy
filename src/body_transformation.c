@@ -21,11 +21,15 @@ process_with_external_program(char * prog, int pipeToChild[2], int pipeToParent[
 
     }
     else if(pid == 0) {
-        dup2(pipeToChild[READ], STDIN_FILENO);
-        dup2(pipeToParent[WRITE], STDOUT_FILENO);
-
         close(pipeToParent[READ]);
         close(pipeToChild[WRITE]);
+
+       if( dup2(pipeToChild[READ], STDIN_FILENO) == -1 ||
+        dup2(pipeToParent[WRITE], STDOUT_FILENO) == -1){
+           close(pipeToChild[READ]);
+           close(pipeToParent[WRITE]);
+           exit(1);
+       }
 
         system(prog);
 
