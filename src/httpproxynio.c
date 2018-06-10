@@ -134,7 +134,7 @@ struct transformation_data {
 
     buffer  input_buffer;
 
-    uint8_t  raw_input_buffer[2000];
+    uint8_t  raw_input_buffer[DEFAULT_BUFFER_SIZE];
 };
 
 
@@ -225,7 +225,7 @@ static unsigned        pool_size = 0;  // tamaÃ±o actual
 static struct socks5 * pool      = 0;  // pool propiamente dicho
 static const struct state_definition *
 socks5_describe_states(void);
-static int copy_to_buffer(buffer * source, buffer * b);
+static int copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p);
 /** crea un nuevo `struct socks5' */
 static struct socks5 *
 socks5_new(int client_fd) {
@@ -843,7 +843,7 @@ copy_r(struct selector_key *key) {
 
                         t->prog = "sed -u -e s/1/2/g";
 
-                        buffer_init(&(t->input_buffer), 2000, t->raw_input_buffer);
+                        buffer_init(&(t->input_buffer), DEFAULT_BUFFER_SIZE, t->raw_input_buffer);
 
 
                         selector_status s = SELECTOR_SUCCESS;
@@ -872,7 +872,7 @@ copy_r(struct selector_key *key) {
                     }
                 }  
             }else{
-                copy_to_buffer(b, d->response.parser.buffer_output);
+                copy_to_buffer(b, d->response.parser.buffer_output,&d->response.parser );
             }
             
         }
@@ -1077,8 +1077,17 @@ static void transformation_read (struct selector_key *key)
         }
 
     }else{
-            buffer_write_adv(b, count);
-           
+    
+            if(ATTACHMENT(key)->orig_copy.response.parser.is_chunked) {
+                int a = sprintf((char*)ptr + count , "%x\r\n", (unsigned int)count - 2);
+                buffer_write_adv(b, count + a);
+                for(int i = 0; i < count; i++){
+                    const uint8_t c = buffer_read(b);
+                    buffer_write(b, c);
+                }
+            }else{
+                buffer_write_adv(b, count);
+            }
     }
     compute_transformation_interests(key);
     copy_compute_interests(key->s, &ATTACHMENT(key)->client_copy);
@@ -1121,11 +1130,20 @@ static void transformation_write (struct selector_key *key)
     copy_compute_interests(key->s , ATTACHMENT(key)->client_copy.other);
 }
 
-static int copy_to_buffer(buffer * source, buffer * b){
-
+static int copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p ){
+    enum chunked_state state;
     while(buffer_can_read(source)){
          const uint8_t c = buffer_read(source);
-         buffer_write(b, c);
+         if(p->is_chunked == false){
+            buffer_write(b, c);
+        }else{
+           
+           if(p->chunked_state == chunked_body || p->chunked_state == chunked_cr_body){
+                fprintf(stderr, "ESCRIBO %c(%d)\n", c ,c);
+                buffer_write(b, c);
+            }
+            state = http_chunked_parser(p,c);
+        }
     }
     return 0;
 }

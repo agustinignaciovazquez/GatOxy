@@ -27,6 +27,7 @@
 #define MAX_CHARSET_LEN 15
 #define MAX_TYPES 4
 #define MAX_TYPES_LEN 50
+#define MAX_CHUNK_LENGTH 7
 
 /*ENCODINGS*/
 #define IDENTITY 1
@@ -59,7 +60,15 @@ enum encoding_type {
     encoding_chunked = 0x04,
 };
 
+enum chunked_state {
+    chunked_number,
+    chunked_cr_number,
+    chunked_cr_body,
+    chunked_body,
+    chunked_end_trailer,
+    chunked_error,
 
+};
 
 static const char *HEADER_RES_STRING[] = {
     NULL, "TRANSFER-ENCODING", "CONTENT-LENGTH", "CONTENT-TYPE", "CONTENT-ENCODING"
@@ -112,8 +121,12 @@ struct http_response {
 struct http_res_parser {
   struct buffer * buffer_output;
   struct http_response *response;
+  uint16_t index;
   enum http_state state;
   enum header_autom_state h_state;
+  enum chunked_state chunked_state;
+  uint32_t chunked_remain_num;
+  char chunked_remain[MAX_CHUNK_LENGTH];
   uint16_t i_header;
   uint16_t i_encoding;
   uint16_t i_type; 
@@ -160,7 +173,7 @@ http_res_consume(buffer *b, struct http_res_parser *p, bool *errored);
 bool 
 http_res_is_done(const enum http_state state, bool *errored);
 
-
+enum chunked_state http_chunked_parser (struct http_res_parser *p, uint8_t b);
 /** libera recursos internos del parser */
 void http_res_parser_close(struct http_res_parser *p);
 

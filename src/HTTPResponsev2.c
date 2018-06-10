@@ -23,7 +23,10 @@ remaining_is_done(struct http_res_parser* p) {
 
 /* TODO : chequear inicializacion */
 extern void http_res_parser_init (struct http_res_parser *p, struct buffer * b){
-    
+
+    p->chunked_state = chunked_number;
+    p->index = 0;
+    p->chunked_remain_num = 0;
     p->buffer_output = b;
     p->body_found = 0;
     p->state     = http_version;
@@ -531,6 +534,79 @@ extern enum http_state http_res_parser_feed (struct http_res_parser *p, uint8_t 
     }
 
     return p->state;
+}
+
+enum chunked_state http_chunked_parser (struct http_res_parser *p, uint8_t b){
+
+    switch(p->chunked_state) {
+        /*FIRST*/
+        case chunked_number:
+        fprintf(stderr, "chunk number\n" );
+            p->chunked_state = chunked_error;
+            b = toupper(b);
+            if( IS_NUM(b) || b=='A' || b=='B' || b=='C'|| b=='D'|| b=='E'|| b=='F' ){
+                if (p->index == MAX_CHUNK_LENGTH - 1){
+                        p->chunked_state = chunked_error;
+                }
+                p->chunked_remain[p->index] = b;
+                p->index++;
+                fprintf(stderr, "VALUE%d\n",p->chunked_remain_num  );
+                p->chunked_state = chunked_number;
+            }
+            if (b == CR){
+                p->chunked_remain[p->index] = '\0';
+                p->chunked_remain_num =  (int)strtol(p->chunked_remain, NULL, 16);
+                p->chunked_state = chunked_cr_number;
+            }
+        break; 
+        case chunked_cr_number:
+        fprintf(stderr, "chunk cr number\n" );
+            p->chunked_state = chunked_error;
+            if (b == LF){
+                p->chunked_state = chunked_body;
+                if(p->chunked_remain_num == 0)
+                    p->chunked_state = chunked_end_trailer;
+            }
+        break;
+
+        case chunked_body:
+
+        fprintf(stderr, "chunk body\n" );
+            
+            fprintf(stderr, "VALUE%d\n",p->chunked_remain_num  );
+            p->chunked_state = chunked_body;
+            if(p->chunked_remain_num <= 0){
+                p->chunked_state = chunked_error;
+            }
+            if(b == CR && p->chunked_remain_num == 0){
+                    p->chunked_state = chunked_cr_body;
+            }
+            
+            p->chunked_remain_num--;
+        break;
+
+        case chunked_cr_body:
+        fprintf(stderr, "chunk cr body\n" );
+            p->chunked_state = chunked_error;
+            if (b == LF){
+                p->index = 0;
+                p->chunked_remain_num = 0;
+                p->chunked_state = chunked_number;
+            }
+        break;
+        case chunked_end_trailer:
+        fprintf(stderr, "chunk end trailer\n" );
+        break;
+        case chunked_error:
+        fprintf(stderr, "chunk error\n" );
+        break;
+        default:
+            //ffprintf(stderr, stderr, "unknown state %d\n", p->state);
+            //abort();
+        break;
+    }
+
+    return p->chunked_state;
 }
 
 extern bool 
