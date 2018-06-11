@@ -389,6 +389,7 @@ enum http_response_status {
     status_address_type_not_supported         = 0x08,
     status_unavailable_service                = 0x09,
     status_server_unreachable                 = 0x0A,
+    status_bad_request                        = 0x0B,
 };
 /** convierte a errno en socks_response_status */
 enum http_response_status errno_to_socks(int e);

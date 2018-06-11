@@ -239,24 +239,24 @@ static enum header_autom_state
 type_check(const uint8_t b, struct http_res_parser* p) {
     
     int a = toupper(b);
-    p->i_type++;  
+     
     if(a == CR){
         p->response->content_types[p->content_types][p->i_type] = 0;
         p->content_types++;
-        fprintf(stderr, "%d\n", p->content_types );
         return header_done_cr;
     }else if(a == ',' || a == ';'){ 
         p->response->content_types[p->content_types][p->i_type] = 0;
         p->content_types++;
-        fprintf(stderr, "%d\n", p->content_types );
         //p->response->content_types[p->content_types][p->i_type] = 0;
         if(p->content_types >= MAX_TYPES)
             return header_invalid;
-        return header_content_type_check;
-    }else if(IS_URL_CHAR(a) || a == '-' || a == '*'){
+        return header_content_type_consume_start;
+    }else if(IS_URL_CHAR(a) || a == '-' || a == '*' || a == '/'){
         p->response->content_types[p->content_types][p->i_type] = b;
+        p->i_type++; 
         return header_content_type_check;
     }
+
     return header_invalid;
     // TODO poner error unsupported_type
 }

@@ -1,5 +1,5 @@
 #include "proxy_state.h"
-
+#include <string.h>
 /**
 * The global state of the proxy at any time.
 * should be accesible to all of the proxy using extern
