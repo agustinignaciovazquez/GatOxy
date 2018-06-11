@@ -38,6 +38,7 @@ http_res_parser_init (struct http_res_parser *p, struct buffer * b){
     p->chunked_state        = chunked_number;
     p->index                = 0;
     p->chunked_remain_num   = 0;
+    p->chunked_total_num    = 0;
     p->buffer_output        = b;
     p->body_found           = 0;
     p->state                = http_version;
@@ -556,6 +557,7 @@ enum chunked_state http_chunked_parser (struct http_res_parser *p, uint8_t b){
             if (b == CR){
                 p->chunked_remain[p->index] = '\0';
                 p->chunked_remain_num =  (int)strtol(p->chunked_remain, NULL, 16);
+                p->chunked_total_num += p->chunked_remain_num;
                 p->chunked_state = chunked_cr_number;
             }
         break; 

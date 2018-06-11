@@ -4,7 +4,7 @@
 #include <limits.h>
 
 #define DEFAULT_BUFFER_SIZE 4*1024*1024
-#define HEADERS_BUFFER_SIZE 2000
+#define HEADERS_BUFFER_SIZE DEFAULT_BUFFER_SIZE
 
 int
 get_buffer_size();

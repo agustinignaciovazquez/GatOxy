@@ -126,6 +126,7 @@ struct http_res_parser {
   enum header_autom_state h_state;
   enum chunked_state chunked_state;
   uint32_t chunked_remain_num;
+  int32_t chunked_total_num;
   char chunked_remain[MAX_CHUNK_LENGTH];
   uint16_t i_header;
   uint16_t i_encoding;

@@ -787,7 +787,7 @@ copy_ptr(struct selector_key *key) {
     return  d;
 }
 
-bool transform = false;
+bool transform = true;
 
 /** lee bytes de un socket y los encola para ser escritos en otro socket */
 static unsigned
@@ -1083,15 +1083,28 @@ static void transformation_read (struct selector_key *key)
     }else{
     
             if(ATTACHMENT(key)->orig_copy.response.parser.is_chunked) {
-                int a = sprintf((char*)ptr + count , "%x\r\n", (unsigned int)count - 2);
-                buffer_write_adv(b, count + a);
-                for(int i = 0; i < count; i++){
-                    const uint8_t c = buffer_read(b);
-                    buffer_write(b, c);
-                }
+                    int a = sprintf((char*)ptr + count , "%x\r\n", (unsigned int)count);
+                    buffer_write_adv(b, count + a);
+                    ATTACHMENT(key)->orig_copy.response.parser.chunked_total_num -= count;
+                    for(int i = 0; i < count; i++){
+                        const uint8_t c = buffer_read(b);
+                        buffer_write(b, c);
+                    }
+                    buffer_write(b, CR);
+                    buffer_write(b,LF);
+                    fprintf(stderr," TU VIEJA %d", ATTACHMENT(key)->orig_copy.response.parser.chunked_total_num);
+                    if(ATTACHMENT(key)->orig_copy.response.parser.chunked_total_num <= 0){
+                        fprintf(stderr, "MANDO END \n");
+                        buffer_write(b, '0');
+                        buffer_write(b, CR);
+                        buffer_write(b,LF);
+                        buffer_write(b, CR);
+                        buffer_write(b,LF);
+                    }
             }else{
                 buffer_write_adv(b, count);
             }
+
     }
     compute_transformation_interests(key);
     copy_compute_interests(key->s, &ATTACHMENT(key)->client_copy);
@@ -1116,7 +1129,7 @@ static void transformation_write (struct selector_key *key)
 
 
     int count = write(key->fd,ptr, n );
-    fprintf(stderr, "%d\n", count );
+    //fprintf(stderr, "%d\n", count );
     if(count <= 0)
     {
         t->inputTransformation[WRITE] = -1;
@@ -1144,7 +1157,7 @@ static int copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p
             buffer_write(b, c);
         }else{
            
-           if(p->chunked_state == chunked_body || p->chunked_state == chunked_cr_body){
+           if(p->chunked_state == chunked_body || p->chunked_state == chunked_cr_body ){
                 fprintf(stderr, "ESCRIBO %c(%d)\n", c ,c);
                 buffer_write(b, c);
             }
