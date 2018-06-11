@@ -836,7 +836,7 @@ copy_r(struct selector_key *key) {
                         fprintf(stderr, "error\n" );
                         return ERROR;//TODO mejorar esto agregar codigo error
                     }
-                    if(transform == true && ATTACHMENT(key)->transformation == NULL) {
+                    if(transform == true && d->response.parser.is_identity == true && ATTACHMENT(key)->transformation == NULL) {
                         struct transformation_data *t = malloc(sizeof(struct transformation_data));
 
                         ATTACHMENT(key)->transformation = t;
@@ -872,7 +872,7 @@ copy_r(struct selector_key *key) {
                     }*/
                 }  
                 copy_to_buffer(b, d->response.parser.buffer_output,&d->response.parser );
-            }else if(transform == false){
+            }else if(!(transform == true && d->response.parser.is_identity == true)){
                 d->rb = d->response.parser.buffer_output;
 
             }
@@ -1085,14 +1085,13 @@ static void transformation_read (struct selector_key *key)
             if(ATTACHMENT(key)->orig_copy.response.parser.is_chunked) {
                     int a = sprintf((char*)ptr + count , "%x\r\n", (unsigned int)count);
                     buffer_write_adv(b, count + a);
-                    ATTACHMENT(key)->orig_copy.response.parser.chunked_total_num -= count;
+                    ATTACHMENT(key)->orig_copy.response.parser.chunked_total_num -= (count);
                     for(int i = 0; i < count; i++){
                         const uint8_t c = buffer_read(b);
                         buffer_write(b, c);
                     }
                     buffer_write(b, CR);
                     buffer_write(b,LF);
-                    fprintf(stderr," TU VIEJA %d", ATTACHMENT(key)->orig_copy.response.parser.chunked_total_num);
                     if(ATTACHMENT(key)->orig_copy.response.parser.chunked_total_num <= 0){
                         fprintf(stderr, "MANDO END \n");
                         buffer_write(b, '0');
@@ -1153,7 +1152,7 @@ static int copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p
         return 0;
     while(buffer_can_read(source)){
          const uint8_t c = buffer_read(source);
-         if(p->is_chunked == false || transform == false){
+         if(p->is_chunked == false || transform == false || p->is_identity == false){
             buffer_write(b, c);
         }else{
            
