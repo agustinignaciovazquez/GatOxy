@@ -46,6 +46,7 @@ http_res_parser_init (struct http_res_parser *p, struct buffer * b){
     p->transfer_encodings   = 0;
     p->is_chunked           = false;
     p->is_identity          = true; // default
+    p->content_types        = 0;
 
     memset(p->response, 0, sizeof(*(p->response)));
     // primer miembro a parsear
@@ -261,11 +262,14 @@ type_check(const uint8_t b, struct http_res_parser* p) {
     int a = toupper(b);
     p->i_type++;  
     if(a == CR){
+        p->content_types++;
         p->response->content_types[p->content_types][p->i_type] = 0;
+        fprintf(stderr, "%d\n", p->content_types );
         return header_done_cr;
     }else if(a == ',' || a == ';'){ 
         p->response->content_types[p->content_types][p->i_type] = 0;
         p->content_types++;
+        p->response->content_types[p->content_types][p->i_type] = 0;
         if(p->content_types >= MAX_TYPES)
             return header_invalid;
         return header_content_type_consume_start;

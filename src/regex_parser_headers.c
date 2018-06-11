@@ -78,6 +78,7 @@ int main(int argc, char const *argv[]) {
 	assert(regexParser("text/* ; iso-algo", "text/hTml ; iso-algo"));
 	assert(regexParser("text/* ; charset=*", "text/hTml ; charset=utf-8"));
 	assert(regexParser("text/* ; charset=*", "text/ hTml ; charset=utf-8"));
+	assert(!regexParser("text/plain", "text/plain; charset=utf-8"));
 	assert(regexParser("*", "dsfsdf"));
 	
 }

@@ -12,7 +12,7 @@
 #include "HTTPRequest.h"
 #include "buffer.h"
 #include "HTTPResponsev2.h"
-
+#include "logging.h"
 #include "stm.h"
 #include "httpproxynio.h"
 #include "netutils.h"
@@ -24,10 +24,9 @@
 global_proxy_state *proxy_state;
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
-void
-compute_transformation_interests(struct selector_key *key);
-bool 
-regexParser(char *regex, char *str);
+void compute_transformation_interests(struct selector_key *key);
+bool regexParser(char *regex, char *str);
+bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]);
 //#define MSG_NOSIGNAL SO_NOSIGPIPE //sacar en final
 enum socks_v5state {
 
@@ -168,6 +167,8 @@ struct copy {
     struct response_st response;
 
     struct copy *other;
+
+    bool should_filter;
 };
 
 struct socks5 {
@@ -798,7 +799,6 @@ copy_ptr(struct selector_key *key) {
 static unsigned
 copy_r(struct selector_key *key) {
     struct copy * d = copy_ptr(key);
-
     assert(*d->fd == key->fd);
 
     size_t size;
@@ -841,7 +841,11 @@ copy_r(struct selector_key *key) {
                         fprintf(stderr, "error\n" );
                         return ERROR;//TODO mejorar esto agregar codigo error
                     }
-                    if(proxy_state->do_transform == true && d->response.parser.is_identity == true && ATTACHMENT(key)->transformation == NULL) {
+                    if(proxy_state->do_transform == true && 
+                        d->response.parser.is_identity == true && 
+                        ATTACHMENT(key)->transformation == NULL && 
+                        should_filter(d->response.parser.content_types, d->response.response.content_types)
+                        ) {
                         struct transformation_data *t = malloc(sizeof(struct transformation_data));
 
                         ATTACHMENT(key)->transformation = t;
@@ -878,7 +882,7 @@ copy_r(struct selector_key *key) {
                     }*/
                 }  
                 copy_to_buffer(b, d->response.parser.buffer_output,&d->response.parser );
-            }else if(!(proxy_state->do_transform == true && d->response.parser.is_identity == true)){
+            }else if(!(proxy_state->do_transform == true && d->response.parser.is_identity == true && should_filter(d->response.parser.content_types, d->response.response.content_types) == true)){
                 d->rb = d->response.parser.buffer_output;
 
             }
@@ -896,6 +900,28 @@ copy_r(struct selector_key *key) {
     if(ret != REQUEST_WRITE && d->other->duplex == OP_NOOP && d->duplex == OP_NOOP) {
         ret = DONE;
     }
+    return ret;
+}
+
+bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]) {
+    char *aux = calloc(0,sizeof(char));
+
+LOG_DEBUG("#########################");
+    for (int i = 0; i < n; i++) {
+
+        LOG_DEBUG(types[i]);
+        int size_to_increase = strlen(types[i]);
+        aux = realloc(aux, sizeof(aux)+strlen(";")+size_to_increase);
+        if (i!=0) strcat(aux, ";");
+        strcat(aux, types[i]);
+    }
+LOG_DEBUG("#########################");
+    
+    LOG_DEBUG(aux);
+
+    bool ret = regexParser(proxy_state->transformation_types , aux);
+    free(aux);
+    
     return ret;
 }
 
@@ -1158,7 +1184,7 @@ static int copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p
         return 0;
     while(buffer_can_read(source)){
          const uint8_t c = buffer_read(source);
-         if(p->is_chunked == false || proxy_state->do_transform == false || p->is_identity == false){
+         if(p->is_chunked == false || proxy_state->do_transform == false || p->is_identity == false || should_filter(p->content_types, p->response->content_types) == false){
             buffer_write(b, c);
         }else{
            
