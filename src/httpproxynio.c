@@ -787,7 +787,7 @@ copy_ptr(struct selector_key *key) {
     return  d;
 }
 
-bool transform = true;
+bool transform = false;
 
 /** lee bytes de un socket y los encola para ser escritos en otro socket */
 static unsigned
