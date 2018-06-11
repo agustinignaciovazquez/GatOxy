@@ -14,11 +14,11 @@ typedef struct global_proxy_state {
     bool do_transform;
 
     /** transformation command */
-    char transformation_command[30];
+    char transformation_command[100];
     int transformation_command_index;
 
     /** transformation command */
-    char transformation_types[30];
+    char transformation_types[100];
     int transformation_types_index;
 
 } global_proxy_state;

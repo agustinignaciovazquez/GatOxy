@@ -25,6 +25,8 @@ global_proxy_state *proxy_state;
 #define N(x) (sizeof(x)/sizeof((x)[0]))
 void
 compute_transformation_interests(struct selector_key *key);
+bool 
+regexParser(char *regex, char *str);
 //#define MSG_NOSIGNAL SO_NOSIGPIPE //sacar en final
 enum socks_v5state {
 
@@ -843,7 +845,8 @@ copy_r(struct selector_key *key) {
 
                         ATTACHMENT(key)->transformation = t;
 
-                        t->prog = "sed -u -e 's/a/4/g' -e 's/e/3/g' -e 's/i/1/g' -e 's/o/0/g' -e's/5/-/g'";
+                        // t->prog = "sed -u -e 's/a/4/g' -e 's/e/3/g' -e 's/i/1/g' -e 's/o/0/g' -e's/5/-/g'";
+                        t->prog = proxy_state->transformation_command;
 
                         buffer_init(&(t->input_buffer), DEFAULT_BUFFER_SIZE, t->raw_input_buffer);
 
@@ -1166,4 +1169,27 @@ static int copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p
         }
     }
     return 0;
+}
+
+bool regexParser(char *regex, char *str) {
+    int regex_size = strlen(regex);
+    int str_size = strlen(str);
+    if (strlen(regex) == 0) return true; // TODO si no tengo regex, matcheo todo????
+
+    int regex_index = 0;
+    int str_index = 0;
+
+    int i;
+    for (i = 0; i < regex_size; ++i){
+        if (tolower(regex[i]) == '*') return true; // wildcard
+        if (tolower(str[i]) == ' ') return false; // invalid string str
+        if (tolower(regex[i]) == ' ') return false; // invalid string regex
+        if (tolower(regex[i]) != tolower(str[i])) return false; // default case, chars should match
+        str_index++;
+    }
+
+    // valido que los dos el siguiente sea \0
+    if (tolower(regex[i]) != tolower(str[str_index])) return false;
+
+    return true;
 }
