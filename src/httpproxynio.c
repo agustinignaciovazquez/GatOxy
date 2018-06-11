@@ -18,6 +18,9 @@
 #include "netutils.h"
 #include "body_transformation.h"
 #include "buffer_size.h"
+#include "proxy_state.h"
+
+global_proxy_state *proxy_state;
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
 void
@@ -787,7 +790,6 @@ copy_ptr(struct selector_key *key) {
     return  d;
 }
 
-bool transform = true;
 
 /** lee bytes de un socket y los encola para ser escritos en otro socket */
 static unsigned
@@ -836,7 +838,7 @@ copy_r(struct selector_key *key) {
                         fprintf(stderr, "error\n" );
                         return ERROR;//TODO mejorar esto agregar codigo error
                     }
-                    if(transform == true && d->response.parser.is_identity == true && ATTACHMENT(key)->transformation == NULL) {
+                    if(proxy_state->do_transform == true && d->response.parser.is_identity == true && ATTACHMENT(key)->transformation == NULL) {
                         struct transformation_data *t = malloc(sizeof(struct transformation_data));
 
                         ATTACHMENT(key)->transformation = t;
@@ -872,7 +874,7 @@ copy_r(struct selector_key *key) {
                     }*/
                 }  
                 copy_to_buffer(b, d->response.parser.buffer_output,&d->response.parser );
-            }else if(!(transform == true && d->response.parser.is_identity == true)){
+            }else if(!(proxy_state->do_transform == true && d->response.parser.is_identity == true)){
                 d->rb = d->response.parser.buffer_output;
 
             }
@@ -1152,7 +1154,7 @@ static int copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p
         return 0;
     while(buffer_can_read(source)){
          const uint8_t c = buffer_read(source);
-         if(p->is_chunked == false || transform == false || p->is_identity == false){
+         if(p->is_chunked == false || proxy_state->do_transform == false || p->is_identity == false){
             buffer_write(b, c);
         }else{
            
