@@ -789,7 +789,11 @@ copy_ptr(struct selector_key *key) {
     return  d;
 }
 
+<<<<<<< HEAD
 bool transform = true; //TODO esto queda aca o se va
+=======
+bool transform = false;
+>>>>>>> 0c3d35cb55592b0b5899c59acf76cb5db5a65b88
 
 /** lee bytes de un socket y los encola para ser escritos en otro socket */
 static unsigned
