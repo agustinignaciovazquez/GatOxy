@@ -1,5 +1,5 @@
 /**
- * response.c -- parser del hello de SOCKS5
+ * HTTPResponsev2.c -- Parser para responses
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,56 +10,77 @@
 
 #include "HTTPResponsev2.h"
 
+/*
+ * nos permite establecer el largo maximo del proximo miembro a parsear
+ */
 static void
 remaining_set(struct http_res_parser* p, const int n) {
+
     p->i = 0;
     p->n = n;
 }
 
+/*
+ * indica si terminamos de parsear el miembro actual
+ */
 static int
 remaining_is_done(struct http_res_parser* p) {
+
     return p->i >= p->n;
 }
 
-/* TODO : chequear inicializacion */
-extern void http_res_parser_init (struct http_res_parser *p, struct buffer * b){
+/*
+ * inicializa la estructura para el parser
+ */
+extern void 
+http_res_parser_init (struct http_res_parser *p, struct buffer * b){
 
-    p->chunked_state = chunked_number;
-    p->index = 0;
-    p->chunked_remain_num = 0;
-    p->buffer_output = b;
-    p->body_found = 0;
-    p->state     = http_version;
-    p->content_length = -1;
-    p->transfer_encodings = 0;
-    p->is_chunked = false;
-    p->is_identity = true; // default
+    p->chunked_state        = chunked_number;
+    p->index                = 0;
+    p->chunked_remain_num   = 0;
+    p->buffer_output        = b;
+    p->body_found           = 0;
+    p->state                = http_version;
+    p->content_length       = -1;
+    p->transfer_encodings   = 0;
+    p->is_chunked           = false;
+    p->is_identity          = true; // default
 
     memset(p->response, 0, sizeof(*(p->response)));
+    // primer miembro a parsear
     remaining_set(p, VERSION_LEN);
 }
 
+/*
+ * parsea el codigo de estado de la respuesta
+ */
 static enum http_state
 status_code(const uint8_t b, struct http_res_parser * p){
-    if( remaining_is_done(p) ){
+
+    if(remaining_is_done(p)){
         if ( b == SP ){
             remaining_set(p, MAX_REASON_LENGTH-1);
             return http_status_reason;
         }
         return http_error_unsupported_code;
     }
-    if( IS_NUM(b) ){
-        p->response->status_code = (p->response->status_code)*10 + ASCII_TO_NUM(b);
+    if(IS_NUM(b)){
+        p->response->status_code = (p->response->status_code)*10 + 
+            ASCII_TO_NUM(b);
         p->i++;
         return http_status_code;
     }
     return http_error_unsupported_code;
 }
 
+/*
+ * parsea la razon del codigo de estado
+ */
 static enum http_state
 status_code_reason(const uint8_t b, struct http_res_parser * p){
+
     if(remaining_is_done(p)){
-        if(b==CR){
+        if( b == CR ){
             remaining_set(p, MAX_HEADERS_RESPONSE_LENGTH-1);
             return http_done_cr;
         }
@@ -70,13 +91,16 @@ status_code_reason(const uint8_t b, struct http_res_parser * p){
         p->i++;
         return http_status_reason;
     }
-    if( b==CR ){
+    if(b == CR){
         remaining_set(p, MAX_HEADERS_RESPONSE_LENGTH-1);
         return http_done_cr;
     }
     return http_error_malformed_response;
 }
 
+/*
+ * chequea la version de HTTP
+ */
 static enum http_state
 version_check(const uint8_t b, struct http_res_parser* p) {
 
@@ -95,15 +119,15 @@ version_check(const uint8_t b, struct http_res_parser* p) {
 }
 
 
-/* Chequea si es el header Content-Length, si no, chequea si es Content-Type
-    si no, chequea si es Content-Encoding, si no, es un header cualquiera */
-
+/*
+ * chequea si es alguno de los headers que comienza con "Content"
+ */
 static enum header_autom_state 
 content_case(const uint8_t b, struct http_res_parser* p ){
 
-    int a=toupper(b);
+    int a = toupper(b);
     p->i_header++;
-    if (!IS_URL_CHAR(a) && (a!=':')){
+    if (!IS_URL_CHAR(a) && (a != ':')){
         return header_invalid;
     }else if(p->i_header == CONTENT_LEN){
         if(a == 'L')
@@ -118,70 +142,79 @@ content_case(const uint8_t b, struct http_res_parser* p ){
     }else if(a == CONTENT_STRING[p->i_header]){
         return header_content_case;
     }  
-    return (a==':') ? header_value_start : header_name;
+    return (a == ':') ? header_value_start : header_name;
 
 }
 
-
-
+/*
+ * chequea si el header es "Content-Length"
+ */
 static enum header_autom_state 
 content_length_case(const uint8_t b, struct http_res_parser* p ){
 
-
-    int a=toupper(b);
+    int a = toupper(b);
     p->i_header++;
-    if (!IS_URL_CHAR(a) && (a!=':')){
+    if (!IS_URL_CHAR(a) && (a != ':')){
         return header_invalid;
-    }else if((p->i_header == CONTENT_LENGTH_LEN) && (a==':')){
+    }else if((p->i_header == CONTENT_LENGTH_LEN) && (a == ':')){
         return header_content_length_consume_start;
     }else if(p->i_header == CONTENT_LENGTH_LEN){
         return header_name;
     }else if(a == HEADER_RES_STRING[2][p->i_header]){
         return header_content_length_case;
     }  
-    return (a==':') ? header_value_start : header_name;
+    return (a == ':') ? header_value_start : header_name;
 
 }
 
+/*
+ * chequea si el header es "Content-Type"
+ */
 static enum header_autom_state 
 content_type_case(const uint8_t b, struct http_res_parser* p ){
 
-   int a=toupper(b);
+    int a = toupper(b);
     p->i_header++;
-    if (!IS_URL_CHAR(a) && (a!=':')){
+    if (!IS_URL_CHAR(a) && (a != ':')){
         return header_invalid;
-    }else if((p->i_header == CONTENT_TYPE_LEN) && (a==':')){
+    }else if((p->i_header == CONTENT_TYPE_LEN) && (a == ':')){
         return header_content_type_consume_start;
     }else if(p->i_header == CONTENT_TYPE_LEN){
         return header_name;
     }else if(a == HEADER_RES_STRING[3][p->i_header]){
         return header_content_type_case;
     }  
-    return (a==':') ? header_value_start : header_name;
+    return (a == ':') ? header_value_start : header_name;
 
 }
 
+/*
+ * chequea si el header es "Content-Encoding"
+ */
 static enum header_autom_state 
 content_encoding_case(const uint8_t b, struct http_res_parser* p ){
 
-    int a=toupper(b);
+    int a = toupper(b);
     p->i_header++;  
-    if (!IS_URL_CHAR(a) && (a!=':')){
+    if (!IS_URL_CHAR(a) && (a != ':')){
         return header_invalid;
-    }else if((p->i_header == CONTENT_ENCODING_LEN) && (a==':')){
+    }else if((p->i_header == CONTENT_ENCODING_LEN) && (a == ':')){
         return header_content_encoding_consume_start;
     } else if(p->i_header == CONTENT_ENCODING_LEN){
         return header_name;
     }else if(a == HEADER_RES_STRING[4][p->i_header]){
-        fprintf(stderr, "parsed %c\n", b);
         return header_content_encoding_case;
     }
-    return (a==':') ? header_value_start : header_name;
+    return (a == ':') ? header_value_start : header_name;
 
 }
 
+/*
+ * chequea si el header es "Transfer-Encoding"
+ */
 static enum header_autom_state
 transfer_encoding_case(const uint8_t b, struct http_res_parser * p){
+    
     int a = toupper(b);
     p->i_header++;
     if(!IS_URL_CHAR(a) && (a != ':')){
@@ -191,88 +224,66 @@ transfer_encoding_case(const uint8_t b, struct http_res_parser * p){
     }else if(p->i_header == TRANSFER_ENCODING_LEN){
         return header_name;
     }else if(a == HEADER_RES_STRING[1][p->i_header]){
-        fprintf(stderr, "parsed %c\n", b);
         return header_transfer_encoding_case;
     }
     return (a == ':') ? header_value_start : header_name;
 }
 
-/* CHECK FOR TEXT/PLAIN IMAGE/JPEG IMAGE/PNG APPLICATION/OCTET-STREAM*/
-/* en TEXT/PLAIN guardar el charset */
-/* creo que voy a tener que hacer una funcion aparte para poder parsearlo
-    ya que si no no voy a saber como distinguirlo, encima hay que soportar
-    mas de un type
-*/
-/* hacemos lo siguiente: parseamos hasta el / o llenar el buffer, si llenamos el buffer es error. al llegar a la barra parseamos hasta * , ; o CR,
-si llegamos a *, parseamos hasta la , o ; si llegamos a , significa que hay mas types por tanto tenemos que reiniciar, 
-si llegamos a ; viene una prioridad, si llegamos a CR finalizo el header*/
-/* buscar los otros types */
-
-/*inicializar en p->i_type = 0 para cada type distinto*/
+/*
+ * parseamos los media-types en Content-Type. Estos se guardan en un array
+ * de strings para poder parsearlos posteriormente.
+ */
 static enum header_autom_state
 type_recon(const uint8_t b, struct http_res_parser* p) {
-/**/
+
     if(b == CR)
-        return header_done_cr; //CROxDUKIxFiX
-    if('/' == b){ //parseamos lo que viene dsp de la barra
-        //no hay que poner remaining set
-        fprintf(stderr, "parsed barra %c\n", b);
+        return header_done_cr;
+    if('/' == b){
         p->response->content_types[p->content_types][p->i_type] = b;
         return header_content_type_check;
     } else if ( IS_URL_CHAR(b) ){
-        fprintf(stderr, "parsed value %c\n", b);
         p->response->content_types[p->content_types][p->i_type++] = b;
         return header_content_type_recon;
     }
 
-    return header_invalid; // podriamos definir un estado de invalid type
+    return header_invalid; 
+    // TODO podriamos definir un estado de invalid type
 }
 
-/* Chequeamos si es alguno de los types conocidos */
-
+/*
+ * chequea si hay mas types por parsear y guarda lo parseado despues de la
+ * ocurrencia de '/'
+ */
 static enum header_autom_state
 type_check(const uint8_t b, struct http_res_parser* p) {
-    int a=toupper(b);
+    
+    int a = toupper(b);
     p->i_type++;  
-    //if(remaining_is_done(p)){
-       
-        if(a == CR){ // si llega al final listo
-            fprintf(stderr, "done type check\n");
-            p->response->content_types[p->content_types][p->i_type] = 0;
-           // remaining_set(p, MAX_HEADERS_RESPONSE_LENGTH-1);
-            return header_done_cr;
-        }else if(a == ',' || a == ';'){ // se viene otro type
-            fprintf(stderr, "parser comma\n");
-            p->response->content_types[p->content_types][p->i_type] = 0; //cierro string
-            p->content_types++;
-            if(p->content_types >= MAX_TYPES)
-                return header_invalid;
-            return header_content_type_consume_start;
-
-        //}else if(a == ';'){ // lo pongo por si queremos formatear esto de alguna manera pero sigue el mismo flujo (deja la fafa)
-          //  fprintf(stderr, "parsed value %c\n", b);
-            //p->response->content_types[p->content_types][p->i_type] = b;
-            //return header_content_type_check;
-        }else if(IS_URL_CHAR(a) || a == '-' || a == '*'){
-            fprintf(stderr, "parsed value %c\n", b);
-            p->response->content_types[p->content_types][p->i_type] = b;
-            return header_content_type_check;
-        }
-   //return http_error_unsupported_encoding;
-    fprintf(stderr, "invalid\n");
+    if(a == CR){
+        p->response->content_types[p->content_types][p->i_type] = 0;
+        return header_done_cr;
+    }else if(a == ',' || a == ';'){ 
+        p->response->content_types[p->content_types][p->i_type] = 0;
+        p->content_types++;
+        if(p->content_types >= MAX_TYPES)
+            return header_invalid;
+        return header_content_type_consume_start;
+    }else if(IS_URL_CHAR(a) || a == '-' || a == '*'){
+        p->response->content_types[p->content_types][p->i_type] = b;
+        return header_content_type_check;
+    }
     return header_invalid;
+    // TODO poner error unsupported_type
 }
 
-/* CHECK FOR IDENTITY */
-/* Aceptamos otros encodings o los tiramos ?*/
-/* copiamos en encodings mientras sea igual a IDENTITY, si se diferencia reiniciamos el i_c_encoding
-    para que lo pise
-*/
-
+/*
+ * chequea los valores para "Content-Encoding". Pregunta particularmente por
+ * identity.
+ */
 static enum header_autom_state
 content_encoding_recon(const uint8_t b, struct http_res_parser* p) {
     
-    int a=toupper(b);
+    int a = toupper(b);
     if(!IS_URL_CHAR(a) && (a != CR)){
         return header_invalid;
     }else if((p->i_header == IDENTITY_LEN) && (a == CR)){
@@ -285,18 +296,18 @@ content_encoding_recon(const uint8_t b, struct http_res_parser* p) {
     }else if(a == CONTENT_ENCODING_STRING[1][p->i_header]){
         p->i_header++;
         return header_content_encoding_recon;
-
     }
     return (a == CR) ? header_done_cr : header_value;
-
 }
 
-
-
-/* CHECK FOR CHUNKED */
+/*
+ * chequea los valores de "Transfer-Encoding". Busca particularmente por el
+ * valor chunked.
+ */
 static enum header_autom_state
 encoding_recon(const uint8_t b, struct http_res_parser* p) {
-    int a=toupper(b);
+
+    int a = toupper(b);
     if(!IS_URL_CHAR(a) && (a != CR)){
         return header_invalid;
     }else if((p->i_header == CHUNKED_LEN) && (a == CR)){
@@ -313,16 +324,18 @@ encoding_recon(const uint8_t b, struct http_res_parser* p) {
     return (a == CR) ? header_done_cr : header_value;
 }
 
-
+/*
+ * maquina de estados que maneja el flujo para el parseo de headers y sus
+ * values
+ */
 static enum http_state
 header_check_automata(const uint8_t b, struct http_res_parser* p) {
   
     int a;
-     switch(p->h_state) { 
+    switch(p->h_state) { 
 
         case header_init:
-          
-            a=toupper(b);
+            a = toupper(b);
             if(b == ':'){
                 p->h_state = header_invalid;
                 break;
@@ -359,21 +372,19 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
             }
             break;
         case header_done_cr:
-        /*ASK: Si al CR no lo sigue LF no es error ?*/
             if(b == LF){
-
                 p->h_state = header_done;
             }
             break;
         case header_content_case:
-                p->h_state = content_case(b,p);
-                break;
+            p->h_state = content_case(b,p);
+            break;
         case header_content_type_case:
-                p->h_state = content_type_case(b,p);
-                break;
+            p->h_state = content_type_case(b,p);
+            break;
         case header_content_encoding_case:
-                p->h_state = content_encoding_case(b,p);
-                break;
+            p->h_state = content_encoding_case(b,p);
+            break;
         case header_content_encoding_consume_start:
             p->i_header = 0;
             if(b == SP){
@@ -381,9 +392,9 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
                 break;
             }
         case header_content_encoding_recon:
-                p->is_identity = false;
-                p->h_state = content_encoding_recon(b,p);
-                break;
+            p->is_identity = false;
+            p->h_state = content_encoding_recon(b,p);
+            break;
         case header_content_type_consume_start:
             p->i_type = 0;
             if(b == SP){
@@ -391,16 +402,16 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
                 break;
             }
         case header_content_type_recon:
-                p->h_state = type_recon(b,p);
-                break;
+            p->h_state = type_recon(b,p);
+            break;
         case header_content_type_check:
-                p->h_state = type_check(b,p);
-                break;
+            p->h_state = type_check(b,p);
+            break;
         case header_content_length_case:
-                p->h_state = content_length_case(b, p);
+            p->h_state = content_length_case(b, p);
             break;
         case header_transfer_encoding_case:
-                p->h_state = transfer_encoding_case(b, p);
+            p->h_state = transfer_encoding_case(b, p);
             break;
         case header_transfer_encoding_consume_start:
             p->i_header = 0;
@@ -412,7 +423,6 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
             p->h_state = encoding_recon(b, p);
             break;
         case header_content_length_consume_start:
-        /*ASK: si no hay espacio, no deberia dar error?*/
             if(b == SP){
                 p->h_state = header_content_length_consume;
                 break;
@@ -420,7 +430,8 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
         case header_content_length_consume:
             p->h_state = header_invalid;
             if(IS_NUM(b)){
-                p->response->header_content_length = (p->response->header_content_length)*10 + ASCII_TO_NUM(b);
+                p->response->header_content_length = 
+                    (p->response->header_content_length)*10 + ASCII_TO_NUM(b);
                 p->h_state = header_content_length_consume;
             }
             if(b == CR){
@@ -431,19 +442,17 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
         case header_invalid:
             break;
         default:
-            //ffprintf(stderr, stderr, "unknown uri_state %d\n", p->uri_state);
-            abort(); // legal, seguro y gratuito
+            abort();
     }
     if(p->h_state == header_done){
-        //si ya esta el header seguimos buscando
         return http_headers_start;
     }
-    //si hay un error de uri se pone en el estado del parser, sino se continua verificando
     return (p->h_state != header_invalid)? http_headers:http_error_malformed_response;
 }
 
-
-
+/*
+ * agrega el caracter al buffer para parsear headers y parsea el header
+ */
 static enum http_state
 header_check(const uint8_t b, struct http_res_parser* p) {
     
@@ -457,11 +466,13 @@ header_check(const uint8_t b, struct http_res_parser* p) {
 }
 
 /*TODO: change flow */
-extern enum http_state http_res_parser_feed (struct http_res_parser *p, uint8_t b){
-    fprintf(stderr, "%c\n", b);
+/*
+ * maquina de estados que maneja el flujo del parseo 
+ */
+extern enum http_state http_res_parser_feed (struct http_res_parser *p, 
+                                                uint8_t b){
 
     switch(p->state) {
-        /*FIRST*/
         case http_version:
             p->state = version_check(b,p);
             break;
@@ -480,12 +491,7 @@ extern enum http_state http_res_parser_feed (struct http_res_parser *p, uint8_t 
             p->state = status_code_reason(b,p);
             break;
         case http_done_cr:
-          /*  p->state = http_error_no_end;
-            if(b == CR)
-                p->state = http_done_cr_cr;
-            break;*/
         case http_done_cr_cr:
-        //ffprintf(stderr, stderr, "http_done_cr_cr consumo %c",b);
             p->state = http_error_no_end;
             if(b == CR)
                 p->state = http_done_cr_cr;
@@ -493,33 +499,25 @@ extern enum http_state http_res_parser_feed (struct http_res_parser *p, uint8_t 
                 p->state = http_headers_start;
             break;
         case http_headers_start:
-        //ffprintf(stderr, stderr, "http_headers_start consumo %d",b);
             p->h_state = header_init;
-            
             if(b == CR){
                 p->state = http_body_start;
                 break;
             }
         case http_headers:
-        //ffprintf(stderr, stderr, "http_headers consumo %d",b);
             p->state = header_check(b,p);
             break;
         case http_body_start:
-        //ffprintf(stderr, stderr, "http_body_start consumo %d",b);
             p->state = http_error_malformed_response;
             if(b == LF){
                 p->body_found = true;
                 p->state = http_done;
             }
             break;
-        /* TO BE IMPLEMENTED */
         case http_body:
-        //ffprintf(stderr, stderr, "http_body consumo %d",b);
-            //p->state = body_check(b,p);
-            p->state = http_done; /*TEMP*/
+            p->state = http_done;
             break;
         case http_done:
-        //ffprintf(stderr, stderr, "http_done consumo %d",b);
         case http_error_unsupported_encoding:
         case http_error_unsupported_code:
         case http_error_header_too_long:
@@ -529,22 +527,24 @@ extern enum http_state http_res_parser_feed (struct http_res_parser *p, uint8_t 
         case http_error_malformed_response:
             break;
         default:
-            //ffprintf(stderr, stderr, "unknown state %d\n", p->state);
             abort();
     }
-
     return p->state;
 }
 
+/*
+ * parsea un mensaje con encoding = chunked
+ */
+/*TODO terminar de limpiar cuando este listo*/
 enum chunked_state http_chunked_parser (struct http_res_parser *p, uint8_t b){
 
     switch(p->chunked_state) {
-        /*FIRST*/
         case chunked_number:
         fprintf(stderr, "chunk number\n" );
             p->chunked_state = chunked_error;
             b = toupper(b);
-            if( IS_NUM(b) || b=='A' || b=='B' || b=='C'|| b=='D'|| b=='E'|| b=='F' ){
+            if( IS_NUM(b) || b=='A' || b=='B' || b=='C'|| b=='D'|| b=='E'||
+                     b=='F' ){
                 if (p->index == MAX_CHUNK_LENGTH - 1){
                         p->chunked_state = chunked_error;
                 }
@@ -609,8 +609,12 @@ enum chunked_state http_chunked_parser (struct http_res_parser *p, uint8_t b){
     return p->chunked_state;
 }
 
+/*
+ * maneja los errores posibles a la hora de parsear
+ */
 extern bool 
 http_res_is_done(const enum http_state state, bool *errored) {
+
     bool ret;
     switch (state) {
         case http_error_unsupported_encoding:
@@ -636,42 +640,55 @@ http_res_is_done(const enum http_state state, bool *errored) {
    return ret;
 }
 
+/*
+ * por si se necesita podriamos liberar memoria del parser que ya no usaremos
+ */
 extern void http_res_parser_close(struct http_res_parser *p) {
     /* no hay nada que liberar */
 }
 
+/*
+ * consume un caracter del buffer
+ */
+/*TODO limpiar cuando se termine de usar*/
 extern enum http_state
 http_res_consume(buffer *b, struct http_res_parser *p, bool *errored) {
-    enum http_state st = p->state;
 
-    while(buffer_can_read(b)) { // si ya estamos por leer body no consumimos mas y se lo pasamos directamente al origin!
+    enum http_state st = p->state;
+    while(buffer_can_read(b)) {
         const uint8_t c = buffer_read(b);
         buffer_write(p->buffer_output , c);
         fprintf(stderr, "CONSUMO %c\n", c);
         st = http_res_parser_feed(p, c);
         if (http_is_done(st, errored) || p->body_found == true){
-            fprintf(stderr, "CONTENT LENGTH = %d \n",  p->response->header_content_length);
+            fprintf(stderr, "CONTENT LENGTH = %d \n", 
+                    p->response->header_content_length);
             fprintf(stderr, "IDENTITY = %d\n", p->is_identity);
             fprintf(stderr, "CHUNKED = %d\n", p->is_chunked);
-            fprintf(stderr, "M TYPE 1 = %s \n",  p->response->content_types[0]);
-            fprintf(stderr, "M TYPE 2 = %s \n",  p->response->content_types[1]);
+            fprintf(stderr, "M TYPE 1 = %s \n", 
+                    p->response->content_types[0]);
+            fprintf(stderr, "M TYPE 2 = %s \n",  
+                    p->response->content_types[1]);
             break;
         }
     }
     return st;
 }
 
+/*
+ * guarda los datos importantes del parser para usar en el proxy
+ */
 extern int
 http_res_marshall(buffer *b, struct http_response * res, buffer * b2){
-    size_t n;
+
+    size_t n, size_body, version_len, headers_len, total_len, code_reason_len;
     uint8_t *buff = buffer_write_ptr(b, &n);
-    size_t size_body;
     uint8_t *ptr = buffer_read_ptr(b, &size_body);
-    size_t version_len, headers_len, total_len, code_reason_len;
     headers_len = strlen(res->headers);
     version_len = strlen(VERSION_STRING);
     code_reason_len = strlen(res->code_reason);
-    total_len = version_len+headers_len+ STATUS_CODE_LEN+ code_reason_len+7;
+    total_len = version_len+headers_len + STATUS_CODE_LEN + code_reason_len 
+                    + 7;
  
 
     if(n < total_len) {
@@ -682,8 +699,8 @@ http_res_marshall(buffer *b, struct http_response * res, buffer * b2){
     buff += version_len;
     buff[0] = res->http_version;
     buff[1] = SP;   
-    buff+=2;
-    sprintf(buff, "%d", res->status_code);
+    buff += 2;
+    sprintf(buff, "%d", res->status_code); // TODO limpar?
     buff += STATUS_CODE_LEN;
     buff[0] = SP;
     buff++;
@@ -691,12 +708,12 @@ http_res_marshall(buffer *b, struct http_response * res, buffer * b2){
     buff += code_reason_len;
     buff[0] = CR;
     buff[1] = LF;
-    buff+=2;
+    buff += 2;
     strcpy(buff, res->headers);
     buff += headers_len;
     buff[0] = CR;
     buff[1] = LF;
-    buff+=2;
+    buff += 2;
 
     
     //fixeamos que el body quede despues de los headers
@@ -706,11 +723,9 @@ http_res_marshall(buffer *b, struct http_response * res, buffer * b2){
          buffer_write(b, c);
     }
     return total_len;
-
-
 }
 
-
+/* TODO pasar a response_test.c */
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 /* TESTS */
@@ -1318,7 +1333,7 @@ void test_response_with_multi_type_formats() {
 
 /*
 
-void test_response_nacho_cifuentes(){
+void test_response_multi_headers(){
 
     struct http_response response;
     struct http_res_parser parser = {
