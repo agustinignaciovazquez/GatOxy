@@ -169,8 +169,6 @@ struct copy {
     struct http_request *       request;
     struct response_st          response;
 
-    struct copy *other;
-
     bool should_filter;
 
     struct copy *               other;

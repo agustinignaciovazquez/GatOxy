@@ -232,27 +232,6 @@ transfer_encoding_case(const uint8_t b, struct http_res_parser * p){
 }
 
 /*
- * parseamos los media-types en Content-Type. Estos se guardan en un array
- * de strings para poder parsearlos posteriormente.
- */
-static enum header_autom_state
-type_recon(const uint8_t b, struct http_res_parser* p) {
-
-    if(b == CR)
-        return header_done_cr;
-    if('/' == b){
-        p->response->content_types[p->content_types][p->i_type] = b;
-        return header_content_type_check;
-    } else if ( IS_URL_CHAR(b) ){
-        p->response->content_types[p->content_types][p->i_type++] = b;
-        return header_content_type_recon;
-    }
-
-    return header_invalid; 
-    // TODO podriamos definir un estado de invalid type
-}
-
-/*
  * chequea si hay mas types por parsear y guarda lo parseado despues de la
  * ocurrencia de '/'
  */
@@ -262,17 +241,18 @@ type_check(const uint8_t b, struct http_res_parser* p) {
     int a = toupper(b);
     p->i_type++;  
     if(a == CR){
-        p->content_types++;
         p->response->content_types[p->content_types][p->i_type] = 0;
+        p->content_types++;
         fprintf(stderr, "%d\n", p->content_types );
         return header_done_cr;
     }else if(a == ',' || a == ';'){ 
         p->response->content_types[p->content_types][p->i_type] = 0;
         p->content_types++;
-        p->response->content_types[p->content_types][p->i_type] = 0;
+        fprintf(stderr, "%d\n", p->content_types );
+        //p->response->content_types[p->content_types][p->i_type] = 0;
         if(p->content_types >= MAX_TYPES)
             return header_invalid;
-        return header_content_type_consume_start;
+        return header_content_type_check;
     }else if(IS_URL_CHAR(a) || a == '-' || a == '*'){
         p->response->content_types[p->content_types][p->i_type] = b;
         return header_content_type_check;
@@ -403,12 +383,9 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
         case header_content_type_consume_start:
             p->i_type = 0;
             if(b == SP){
-                p->h_state = header_content_type_recon;
+                p->h_state = header_content_type_check;
                 break;
             }
-        case header_content_type_recon:
-            p->h_state = type_recon(b,p);
-            break;
         case header_content_type_check:
             p->h_state = type_check(b,p);
             break;
