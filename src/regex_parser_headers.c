@@ -7,6 +7,8 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <string.h>
+
 
 bool regexParser(char *regex, char *str) {
 	int regex_size = strlen(regex);
@@ -19,8 +21,8 @@ bool regexParser(char *regex, char *str) {
 	int i;
 	for (i = 0; i < regex_size; ++i){
 		if (tolower(regex[i]) == '*') return true; // wildcard
-		if (tolower(str[i]) == ' ') return false; // invalid string str
-		if (tolower(regex[i]) == ' ') return false; // invalid string regex
+		// if (tolower(str[i]) == ' ') return false; // invalid string str
+		// if (tolower(regex[i]) == ' ') return false; // invalid string regex
 		if (tolower(regex[i]) != tolower(str[i])) return false; // default case, chars should match
 		str_index++;
 	}
@@ -40,6 +42,7 @@ int main(int argc, char const *argv[]) {
 	assert(regexParser("text/html", "text/hTml"));
 	assert(!regexParser("text/html", "text/hTml "));
 	assert(!regexParser("text/html", " text/hTml"));
+	assert(!regexParser("text/html ; iso-algo", "text/hTml ; is-algo"));
 	assert(regexParser("*", "dsfsdf"));
 	
 }

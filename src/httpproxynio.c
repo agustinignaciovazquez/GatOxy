@@ -19,6 +19,7 @@
 #include "body_transformation.h"
 #include "buffer_size.h"
 #include "proxy_state.h"
+#include <ctype.h>
 
 global_proxy_state *proxy_state;
 
