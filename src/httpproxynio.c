@@ -836,12 +836,12 @@ copy_r(struct selector_key *key) {
                         fprintf(stderr, "error\n" );
                         return ERROR;//TODO mejorar esto agregar codigo error
                     }
-                    if(transform && ATTACHMENT(key)->transformation == NULL) {
+                    if(transform == true && ATTACHMENT(key)->transformation == NULL) {
                         struct transformation_data *t = malloc(sizeof(struct transformation_data));
 
                         ATTACHMENT(key)->transformation = t;
 
-                        t->prog = "sed -u -e s/1/2/g";
+                        t->prog = "sed -u -e 's/a/4/g' -e 's/e/3/g' -e 's/i/1/g' -e 's/o/0/g' -e's/5/-/g'";
 
                         buffer_init(&(t->input_buffer), DEFAULT_BUFFER_SIZE, t->raw_input_buffer);
 
@@ -871,9 +871,9 @@ copy_r(struct selector_key *key) {
                         response_init(key);
                     }
                 }  
-            }else{
-                copy_to_buffer(b, d->response.parser.buffer_output,&d->response.parser );
             }
+            copy_to_buffer(b, d->response.parser.buffer_output,&d->response.parser );
+            
             
         }
     }
@@ -1134,7 +1134,7 @@ static int copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p
     enum chunked_state state;
     while(buffer_can_read(source)){
          const uint8_t c = buffer_read(source);
-         if(p->is_chunked == false){
+         if(p->is_chunked == false || transform == false){
             buffer_write(b, c);
         }else{
            
