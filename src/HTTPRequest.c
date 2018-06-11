@@ -1,6 +1,4 @@
-/**
- * request.c -- parser del hello de SOCKS5
- */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -101,7 +99,6 @@ uri_check_automata(const uint8_t b, struct http_parser* p) {
               }
             break;
         case uri_schema:
-        
             if (!IS_ALPHA(b)) {
                 p->uri_state = uri_invalid;
                 if(b == ':'){
@@ -460,7 +457,8 @@ header_check(const uint8_t b, struct http_parser* p) {
     return header_check_automata(b,p);
 }
 
-extern enum http_state http_parser_feed (struct http_parser *p, uint8_t b){
+extern enum http_state 
+http_parser_feed (struct http_parser *p, uint8_t b){
     switch(p->state) {
         case http_method:
             //fprintf(stderr, "http_method consumo %c",b);

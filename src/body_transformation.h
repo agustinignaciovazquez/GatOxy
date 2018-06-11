@@ -16,8 +16,12 @@ enum errors_2
     PIPE_FAIL=2, FORK_FAIL, INVALID_PARAMETERS
 };
 
+/**
+ * abre los pipes necesarios y procesa la transformacion
+ */
 int
-process_with_external_program(char * prog, int pipeToChild[2], int pipeToParent[2]);
+process_with_external_program(char * prog, int pipeToChild[2], 
+									int pipeToParent[2]);
 
 
 #endif

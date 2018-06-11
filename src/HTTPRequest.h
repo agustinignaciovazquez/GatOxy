@@ -6,6 +6,11 @@
 #include <netinet/in.h>
 #include  <string.h>
 #include "buffer.h"
+
+/**
+ * HTTPRequest.c -- parser de requests HTTP
+ */
+
 //-------------------------RFC DEFINES TO PARSE --------------------
 
 /* Tokens as defined by rfc 2616. Also lowercases them.
@@ -15,6 +20,7 @@
  *                    | "/" | "[" | "]" | "?" | "="
  *                    | "{" | "}" | SP | HT
  */
+
 #define T(v) v
 static const uint8_t normal_url_char[32] = {
 /*   0 nul    1 soh    2 stx    3 etx    4 eot    5 enq    6 ack    7 bel  */
@@ -109,7 +115,10 @@ static const char tokens[256] = {
   (BIT_AT(normal_url_char, (unsigned char)c) || ((c) & 0x80))
 #define IS_HOST_CHAR(c)                                                        \
   (IS_ALPHANUM(c) || (c) == '.' || (c) == '-' || (c) == '_')
+
 //-------------------------RFC DEFINES TO PARSE --------------------
+
+/** defined lenghts */
 #define DEFAULT_HTTP_PORT 80
 #define MAX_FQDN 0xff
 #define SP ' '
@@ -137,6 +146,7 @@ static const char tokens[256] = {
  *  All fields are separated by a SP and always ends with CRLF
  */
 /* no es un ADT/CDT para no evitar malloc/free */
+
 /** estado del parser de http request */
 
 enum http_method_type {
@@ -145,48 +155,91 @@ enum http_method_type {
     http_head_method = 0x03,
 };
 
+/** metodos soportados */
+
 static const char *METHOD_STRING[] = {
     NULL,"GET", "POST", "HEAD"
 };
+
+/** headers especiales */
 
 static const char *HEADER_STRING[] = {
     NULL, "HOST", "CONTENT-LENGTH"
 };
 
 static const char * VERSION_STRING = "HTTP/1.";
+/** chequear si el mensaje ya paso por el proxy */
 static const char * PROXY_HEADER = "ABC-Proxy: true\r\n";
+
 enum uri_state {
+    /** transiciona a: path, schema */
     uri_init,
+    /** transiciona a: invalid, slash */
     uri_schema,
+    /** transiciona a: invalid, slash_slash */
     uri_slash,
+    /** transiciona a: invalid, slash_slash */
     uri_slash_slash,
+    /** transiciona a: invalid, auth, auth_userinfo, auth_host
+     *  auth_port, ipv6, path, query
+     */
     uri_auth,
+    /** transiciona a: invalid */
     uri_auth_userinfo,
+    /** transiciona a: invalid, auth, auth_userinfo, auth_host
+     *  auth_port, ipv6, path, query
+     */
     uri_auth_host,
+    /** transiciona a : invalid, auth_port, query, path */
     uri_auth_port,
+    /** transiciona a : invalid, ipv6, auth_port */
     uri_ipv6,
+    /** transiciona a : path, query, done */
     uri_path,
+    /** transiciona a : path, query, done */
     uri_query,
+    /** abort */
     uri_invalid,
+    /** done */
     uri_done,
 };
 
 enum header_autom_state {
+    /** transiciona a : invalid, content_length_check, host_check,
+     * proxy_check 
+     */
     header_init,
+    /** transiciona a : name, value_start */
     header_name,
+    /** transiciona a : invalid, value, done_cr */
     header_value,
+    /** transiciona a : value_start */
     header_value_start,
+    /** transiciona a : done */
     header_done_cr,
-    header_invalid,
+    /** done */
     header_done,
+    /** transicion a: invalid, content_length_consume_start, name, 
+     *  content_length_check
+     */
     header_content_length_check,
+    /** transicion a: host_check, invalid, name, host_consume_start*/
     header_host_check,
+    /** transicion a: invalid, proxy_check, value_start, name, done */
     header_proxy_check,
+    /** transicion a: content_length_consume, done_cr */
     header_content_length_consume,
+    /** transicion a: host_consume, port_consume, done_cr */
     header_host_consume,
+    /** transicion a: invalid, port_consume, done_cr */
     header_port_consume,
+    /** transicion a: content_length_consume */
     header_content_length_consume_start,
+    /** transicion a: host_consume */
     header_host_consume_start,
+    /** transicion a: invalid, name, length_consume_start, 
+     *  content_length_check, value_start
+     */
     header_transfer_encoding_case,
     header_content_length_case,
     header_content_encoding_case,
@@ -204,23 +257,34 @@ enum header_autom_state {
     header_transfer_encoding_consume_start,
     header_content_encoding_consume_start,
     header_content_type_consume_start,
+    /** abort */
+    header_invalid,
 };
 
 enum http_state {
+    /** transicion a: get_method, post_method, head_method, unsupported_method */
     http_method,
+    /** transicion a: absolute_uri, unsupported_method, check_method */
     http_check_method,
-    /** debemos leer la cantidad de metodos */
+    /** transicion a: error_uri_too_long */
     http_absolute_uri,
-    /** nos encontramos leyendo los métodos */
+    /** transicion a: version, done_cr, unsupported_version */
     http_version,
     http_version_num,
     http_done_cr,
+    /** transicion a: done_cr_cr, headers_start, error_no_end */
     http_done_cr_cr,
+    /** transicion a: header_init, body_start */
     http_headers_start,
+    /** transicion a: parsear headers */
     http_headers,
+    /** transicion a: body, error_malformed_start */
     http_body_start,
-    http_body, //10
+    /** transicion a: done */
+    http_body,
+    /** done */
     http_done,
+    /** abort */
     http_error_unsupported_method,
     http_error_uri_too_long,
     http_error_header_too_long,
@@ -228,13 +292,13 @@ enum http_state {
     http_error_unsupported_version,
     http_error_no_end,
     http_error_malformed_request,
-    http_sp,
-    http_status_code,
-    http_status_reason,
     http_error_unsupported_encoding,
     http_error_unsupported_code,
     http_error_reason_too_long,
     http_error_malformed_response,
+    http_sp,
+    http_status_code,
+    http_status_reason,
 };
 
 struct http_request {
