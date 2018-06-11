@@ -1,3 +1,6 @@
+/**
+ * buffer_size.c -- nos permite manejar los tamanos de los buffers
+ */
 #include "buffer_size.h"
 
 static int
@@ -18,10 +21,8 @@ update_buffer_size(int new_buffer_size){
         return -1;
     }
     buffer_size = new_buffer_size;
-
     return 0;
 }
-
 
 int
 get_headers_buffer_size(){

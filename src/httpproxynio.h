@@ -4,6 +4,11 @@
 #include <netdb.h>
 #include "selector.h"
 
+/**
+ * httpproxynio -- el proxy propiamente dicho, maneja las conexiones
+ * 		llama a los parsers y hace el pasaje de mensajes
+ */
+
 /** handler del socket pasivo que atiende conexiones http proxy */
 void
 socksv5_passive_accept(struct selector_key *key);
