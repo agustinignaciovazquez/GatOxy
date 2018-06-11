@@ -530,7 +530,7 @@ request_resolv_blocking(void *data) {
     char buff[7];
     snprintf(buff, sizeof(buff), "%d",
                 ntohs(s->client_request.request.dest_port));
-    fprintf(stderr, "\nresolving %s:%s\n",s->client_request.request.fqdn, 
+    fprintf(stderr, "Resolving %s:%s\n",s->client_request.request.fqdn, 
                 buff); // TODO borrar
     getaddrinfo(s->client_request.request.fqdn, buff, &hints,
                     &s->origin_resolution);
@@ -560,7 +560,6 @@ request_resolv_done(struct selector_key *key) {
         freeaddrinfo(s->origin_resolution);
         s->origin_resolution = 0;
     }
-    fprintf(stderr, "resolved"); // TODO borrar
     return request_connect(key, d);
 }
 
@@ -607,21 +606,21 @@ request_connect(struct selector_key *key, struct request_st *d) {
         }
     } 
     else {
-        ATTACHMENT(key)->client_request.status = status_unavailable_service;
+        d->status = status_server_unreachable;
         selector_set_interest_key(key, OP_WRITE);
         return REQUEST_WRITE;
     }
 
 finally:
-    fprintf(stderr, "FINALLY CONNECT\n" ); // TODO borrar
     if (error) {
         if (*fd != -1) {
             close(*fd);
             *fd = -1;
             d->status = status_server_unreachable;
-            return REQUEST_WRITE;
         }
-        
+        d->status = status_server_unreachable;
+        selector_set_interest_key(key, OP_WRITE);
+        return REQUEST_WRITE;
     }
     d->status = status;
     return REQUEST_CONNECTING;
@@ -659,7 +658,7 @@ request_connecting(struct selector_key *key) {
     struct request_st * d1 = &ATTACHMENT(key)->client_request;
     if (getsockopt(key->fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
         *d->status = status_unavailable_service;
-        selector_set_interest(key->s,key->fd, OP_WRITE);
+        selector_set_interest(key->s,*d->client_fd, OP_WRITE);
         return REQUEST_WRITE;
     } 
     else {
@@ -669,7 +668,7 @@ request_connecting(struct selector_key *key) {
         } 
         else {
             *d->status = status_server_unreachable;
-            selector_set_interest(key->s,key->fd, OP_WRITE);
+            selector_set_interest(key->s,*d->client_fd, OP_WRITE);
             return REQUEST_WRITE;
         }
     }
@@ -677,6 +676,7 @@ request_connecting(struct selector_key *key) {
     if(-1 == http_marshall(ATTACHMENT(key)->headers_copy, &(d1->request),
                              b2)) {
         *d->status = status_general_proxy_server_failure;
+        selector_set_interest(key->s,*d->client_fd, OP_WRITE);
         return REQUEST_WRITE; 
     }
     selector_status s = 0;
@@ -694,7 +694,7 @@ request_write(struct selector_key *key) {
     struct request_st * d = &ATTACHMENT(key)->client_request;
     unsigned ret = REQUEST_WRITE;
     ssize_t n;
-    char * msg = "ERROR 500 WACHO"; // TODO cambiar
+    char * msg = "500 ERROR"; // TODO cambiar
     n = send(key->fd,msg, strlen(msg),0);
     if(n == -1) {
         ret = ERROR;
