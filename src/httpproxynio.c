@@ -787,7 +787,7 @@ copy_ptr(struct selector_key *key) {
     return  d;
 }
 
-bool transform = true;
+bool transform = false;
 
 /** lee bytes de un socket y los encola para ser escritos en otro socket */
 static unsigned
@@ -866,11 +866,15 @@ copy_r(struct selector_key *key) {
                             printf("HUBO UN ERROR");
                         }
                     }
-                    d->response.parser.content_length -= n;
+                    /*d->response.parser.content_length -= n;
                     if (d->response.parser.content_length<=0){
                         response_init(key);
-                    }
+                    }*/
                 }  
+                copy_to_buffer(b, d->response.parser.buffer_output,&d->response.parser );
+            }else if(transform == false){
+                d->rb = d->response.parser.buffer_output;
+
             }
             copy_to_buffer(b, d->response.parser.buffer_output,&d->response.parser );
             
@@ -1132,6 +1136,8 @@ static void transformation_write (struct selector_key *key)
 
 static int copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p ){
     enum chunked_state state;
+    if( b == source)
+        return 0;
     while(buffer_can_read(source)){
          const uint8_t c = buffer_read(source);
          if(p->is_chunked == false || transform == false){
