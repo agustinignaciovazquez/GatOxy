@@ -240,7 +240,23 @@ enum header_autom_state {
     /** transicion a: invalid, name, length_consume_start, 
      *  content_length_check, value_start
      */
+    header_transfer_encoding_case,
     header_content_length_case,
+    header_content_encoding_case,
+    header_content_type_case,
+    header_charset_case,
+    header_content_case,
+    header_content_encoding_recon,
+    header_content_type_recon,
+    header_charset_recon,
+    header_transfer_encoding_check,
+    header_content_type_check,
+    header_content_encoding_check,
+    header_charset_check,
+    header_transfer_encoding_consume,
+    header_transfer_encoding_consume_start,
+    header_content_encoding_consume_start,
+    header_content_type_consume_start,
     /** abort */
     header_invalid,
 };
@@ -254,6 +270,7 @@ enum http_state {
     http_absolute_uri,
     /** transicion a: version, done_cr, unsupported_version */
     http_version,
+    http_version_num,
     http_done_cr,
     /** transicion a: done_cr_cr, headers_start, error_no_end */
     http_done_cr_cr,
@@ -279,6 +296,9 @@ enum http_state {
     http_error_unsupported_code,
     http_error_reason_too_long,
     http_error_malformed_response,
+    http_sp,
+    http_status_code,
+    http_status_reason,
 };
 
 struct http_request {
