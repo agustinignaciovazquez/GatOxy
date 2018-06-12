@@ -928,31 +928,33 @@ copy_r(struct selector_key *key) {
 bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]) {
 
     int j = MAX_TYPES_LEN;
-    char * resp_string = calloc(sizeof(char),j), * aux;
+    int size_to_increase = 0;
+    char * resp_string, * aux;
     char * token;
     char * str = calloc(sizeof(char),strlen(proxy_state->transformation_types));
     if(str == NULL)
         return false;
-
-    strcpy(str,proxy_state->transformation_types);
-    fprintf(stderr, "%s\n", proxy_state->transformation_types);
-    token = strtok(str, ",");
-
+    
     for (int i = 0; i < n; i++) {
-        int size_to_increase = strlen(types[i]);
-        j += 7+size_to_increase;
-        aux = realloc(resp_string, j);
-        if(aux == NULL){
+        size_to_increase += strlen(types[i]);
+        size_to_increase += 7; // por el para separar';'
+    }
+    str = calloc(sizeof(char),size_to_increase);
+    if(str == NULL){
             free(str);
-            free(resp_string);
             return false;
-        }
-        resp_string = aux;
-        if (i!=0) strcat(resp_string, ";");
+    }
+    for (int i = 0; i < n; i++) {
+        if (i!=0) 
+            strcat(resp_string, ";");
         strcat(resp_string, types[i]);
     }
+
+    strcpy(str,proxy_state->transformation_types);
+    token = strtok(str, ",");
     while( token != NULL ) {
         if (regexParser(token, resp_string)){
+            free(str);
             free(resp_string); 
             return true;
         }
