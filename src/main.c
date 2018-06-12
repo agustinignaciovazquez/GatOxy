@@ -188,8 +188,8 @@ main(int argc, char **argv) {
     for (; !done;) {
         err_msg = NULL;
         ss = selector_select(selector);
-        if (ss != SELECTOR_SUCCESS)
-        LOG_ERROR("serving", "", ""); {
+        if (ss != SELECTOR_SUCCESS) {
+            LOG_ERROR("serving", "", "");
             err_msg = "serving";
             goto finally;
         }

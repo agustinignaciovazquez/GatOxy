@@ -12,7 +12,7 @@ process_with_external_program(char * prog, int pipeToChild[2],
     if(pipe(pipeToChild) < 0 || pipe(pipeToParent) < 0) {
         return PIPE_FAIL;
     }
-    pid = fork();
+    pid = fork(); // TODO 
     if(pid > 0) {
         close(pipeToParent[WRITE]);
         pipeToParent[WRITE] = -1;
