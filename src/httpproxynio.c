@@ -835,8 +835,9 @@ copy_r(struct selector_key *key) {
                         return ERROR;//TODO ACA AGREGAR ERROR REQUEST AGUS
                     }
                      
-
-                     d->should_filter = should_filter(d->response.parser.content_types, d->response.response.content_types);
+                    fprintf(stderr, "LLEGO ACA\n" );
+                    d->should_filter = should_filter(d->response.parser.content_types, d->response.response.content_types);
+                    fprintf(stderr, "%d\n", d->should_filter );
 
                     if(proxy_state->do_transform == true && 
                         d->response.parser.is_identity == true && d->should_filter == true &&  
@@ -903,11 +904,12 @@ bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]) {
     int j = MAX_TYPES_LEN;
     char * resp_string = calloc(0,j);
     char * token;
-    char * str = proxy_state->transformation_types;
-    const char s[2] = ",";
+    char str [41] = "text/html,text/plain;charset=UTF-8,img/*";
     bool ret = false;
 
-    token = strtok(str, s);
+    //strcpy(str,proxy_state->transformation_types);
+    fprintf(stderr, "%s\n", proxy_state->transformation_types);
+    token = strtok(str, ",");
 
     for (int i = 0; i < n; i++) {
         int size_to_increase = strlen(types[i]);
@@ -916,7 +918,9 @@ bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]) {
         if (i!=0) strcat(resp_string, ";");
         strcat(resp_string, types[i]);
     }
+    fprintf(stderr, "%s\n", token );
     while( token != NULL ) {
+        //fprintf(stderr, "%s\n", token );
         if (regexParser(token, resp_string)) ret=true;
         token = strtok(NULL, s);
    }
@@ -1185,7 +1189,7 @@ bool regexParser(char *regex, char *str) {
     int i;
     for (i = 0;i<regex_size && str_index<str_size ;){
         
-        printf("1- >%c<>%c< \n",regex[i],  str[str_index]);
+        //printf("1- >%c<>%c< \n",regex[i],  str[str_index]);
 
         //skip all space characters
         if (regex[i] == ' ') {
@@ -1199,11 +1203,11 @@ bool regexParser(char *regex, char *str) {
         
         //if currently on regex = *
         if ( regex[i] == '*' ) {
-            printf("2- >%c<>%c< \n",regex[i],  str[str_index]);
+            //printf("2- >%c<>%c< \n",regex[i],  str[str_index]);
             
             // check if char not \0
             if ( str[str_index] != ';' && str[str_index] != '\0'  ) {
-                printf("3- >%c<>%c< \n",regex[i],  str[str_index]);
+                //printf("3- >%c<>%c< \n",regex[i],  str[str_index]);
                     str_index++;
                     continue;
             }
@@ -1222,7 +1226,7 @@ bool regexParser(char *regex, char *str) {
     if ( regex[i] == '*' ) i++;
 
     // valido que los dos el siguiente sea \0
-    printf("4-%d>%c<%d>%c< \n",i,regex[i], str_index, str[str_index]);
+    //printf("4-%d>%c<%d>%c< \n",i,regex[i], str_index, str[str_index]);
     if (tolower(regex[i]) != tolower(str[str_index])) return false;
 
     return true;
