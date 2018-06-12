@@ -54,7 +54,7 @@ enum admin_method {
     disable_transformer = 0x04,
     command_transformer = 0x05,
     type_transformer = 0x06,
-    buffer_transformer = 0x06
+    buffer_transformer = 0x07
 };
 
 #define METRICS_LEN 7

@@ -400,6 +400,18 @@ request_process(struct selector_key* key, struct request_st* d) {
                 proxy_state->transformation_command,
                 proxy_state->transformation_types);
             break;
+        case buffer_transformer:
+            n = snprintf(ptr, count,
+                "****PROXY TRANSFORMER****\n"
+                " STATUS: %s\n"
+                " Command: %s\n"
+                " Filter: %s\n"
+                " Buffer: %d\n",
+            proxy_state->do_transform?"ON":"OFF",
+            proxy_state->transformation_command,
+            proxy_state->transformation_types,
+            proxy_state->buffer);
+        break;
         default:
             break;
     }

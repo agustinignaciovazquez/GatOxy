@@ -171,6 +171,7 @@ method_recon(const uint8_t b, struct admin_parser* p) {
 		p->request->method = type_transformer;
 		return admin_check_method;
 	} else if ('b' == b) {
+		LOG_DEBUG("method_recon buffer");
 		remaining_set(p, BUFFER_TRANSFORMER_LEN);
 		p->i = 1;
 		p->request->method = buffer_transformer;
@@ -184,7 +185,6 @@ method_recon(const uint8_t b, struct admin_parser* p) {
 */
 static enum admin_state
 method_check(const uint8_t b, struct admin_parser* p) {
-
 	//primero chequeo byte
 	if (ADMIN_METHOD_STRING[p->request->method][p->i] == b) {
 		p->i++;
@@ -201,9 +201,7 @@ method_check(const uint8_t b, struct admin_parser* p) {
 				proxy_state->transformation_command[0]= '\0';
 				return admin_done_field_method;
 			} else  if (p->request->method == buffer_transformer) {
-				proxy_state->transformation_command_index=0;
-				proxy_state->transformation_command = realloc(proxy_state->transformation_command, 4*sizeof(char));
-				proxy_state->transformation_command[0]= '\0';
+				proxy_state->buffer = 0;
 				return admin_done_field_method;
 			}
 			else
@@ -212,7 +210,6 @@ method_check(const uint8_t b, struct admin_parser* p) {
 
 		return admin_check_method;
 	}
-
 	return admin_error_bad_method;
 }
 
@@ -221,9 +218,6 @@ method_check(const uint8_t b, struct admin_parser* p) {
 */
 static enum admin_state
 parse_data(const uint8_t b, struct admin_parser* p) {
-	char dst[50];
-	sprintf(dst, "parser data::: received >%c<", b);
-	LOG_DEBUG(dst);
 	
 	// check if finished
 	if (CR == b) return admin_done_request;
@@ -245,6 +239,14 @@ parse_data(const uint8_t b, struct admin_parser* p) {
 			proxy_state->transformation_command = realloc(proxy_state->transformation_command, proxy_state->transformation_command_index+3*sizeof(char));
 			proxy_state->transformation_command[proxy_state->transformation_command_index] = '\0';
 		}
+		return admin_data;
+	} else if (p->request->method == buffer_transformer) {
+		if (b == ' ') //in case extra space before or after digit
+			return admin_done_request;
+		if ((b-'0')<0) return admin_error_bad_request
+
+		proxy_state->buffer = proxy_state->buffer*10 + b-'0';
+		
 		return admin_data;
 	}
 	return admin_error_bad_request;
