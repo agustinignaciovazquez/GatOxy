@@ -689,7 +689,33 @@ request_connecting(struct selector_key *key) {
     fprintf(stderr, "conectando"); //TODO borrar 
     return SELECTOR_SUCCESS == s ? COPY : ERROR;
 }
-
+static char * get_error_string(enum http_response_status status){
+    char *ret;
+    switch (status) {
+        case status_succeeded:
+        case status_general_proxy_server_failure:
+            ret = "ERROR 500 INTERNAL PROXY ERROR";
+        break;
+        case status_connection_not_allowed_by_ruleset:
+        case status_network_unreachable:
+        case status_host_unreachable:
+        case status_connection_refused:
+        case status_ttl_expired:
+        case status_command_not_supported:
+        case status_address_type_not_supported:
+        case status_unavailable_service:
+        case status_server_unreachable:
+            ret = "ERROR 503 SERVICE UNAVAILABLE";
+        break;
+        case status_bad_request:
+            ret = "ERROR 400 BAD REQUEST";
+        break;
+        default:
+            ret = "ERROR";
+        break;
+    }
+    return ret;
+}
 /** escribe todos los bytes de la respuesta al mensaje `request' */
 static unsigned
 request_write(struct selector_key *key) {
@@ -697,7 +723,7 @@ request_write(struct selector_key *key) {
     struct request_st * d = &ATTACHMENT(key)->client_request;
     unsigned ret = REQUEST_WRITE;
     ssize_t n;
-    char * msg = "500 ERROR"; // TODO cambiar
+    char * msg = get_error_string(d->status);
     n = send(key->fd,msg, strlen(msg),0);
     if(n == -1) {
         ret = ERROR;
@@ -901,15 +927,15 @@ copy_r(struct selector_key *key) {
 
 bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]) {
 
-    int j = MAX_TYPES_LEN;
+    /*int j = MAX_TYPES_LEN;
     char * resp_string = calloc(0,j);
     char * token;
-    char str [41] = "text/html,text/plain;charset=UTF-8,img/*";
+    char str[41] = "text/html,text/plain;charset=UTF-8,img/*";
     bool ret = false;
-
+    char s[2] = ";";
     //strcpy(str,proxy_state->transformation_types);
     fprintf(stderr, "%s\n", proxy_state->transformation_types);
-    token = strtok(str, ",");
+    token = strtok(str, s);
 
     for (int i = 0; i < n; i++) {
         int size_to_increase = strlen(types[i]);
@@ -925,8 +951,9 @@ bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]) {
         token = strtok(NULL, s);
    }
     
-    free(resp_string);    
-    return ret;
+    free(resp_string);   
+    return ret;*/
+    return true;
 
 }
 
