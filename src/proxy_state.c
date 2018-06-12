@@ -44,11 +44,11 @@ proxy_state_create(int argc, char **argv) {
 	proxy_state->filters_stderr = calloc(strlen(default_stderr) , sizeof(char));
 	strcpy(proxy_state->filters_stderr, default_stderr);
 	
-	char default_proxy_interface[] = "localhost";
-	proxy_state->proxy_interface = calloc(strlen(default_proxy_interface) , sizeof(char));
-	strcpy(proxy_state->proxy_interface, "localhost");	
+	
 
-	proxy_state->http_interface = calloc(1 , sizeof(char));
+	proxy_state->proxy_interface = INADDR_LOOPBACK;
+	proxy_state->http_interface = INADDR_ANY;
+
   proxy_state->transformation_types_index = 0;
 	proxy_state->transformation_types = calloc(1 , sizeof(char));
 
@@ -92,17 +92,15 @@ int parse_cli_options(int argc, char **argv) {
               proxy_state->filters_stderr[strlen(optarg)] = '\0';
               break;
           case 'l': //proxy listening interface,, default all
-          	  proxy_state->http_interface = realloc(proxy_state->http_interface, strlen(optarg)*sizeof(char));
-              strcpy(proxy_state->http_interface, optarg);
-              proxy_state->http_interface[strlen(optarg)] = '\0';
+          	  // if (strcmp(optarg,"localhost"))
+             //    proxy_state->http_interface = INADDR_LOOPBACK;
               break;
           case 'p': //proxy port TODO
               proxy_state->port = atoi(optarg);	
               break;
           case 'L': //mng listening interface, default loopback
-          	  proxy_state->proxy_interface = realloc(proxy_state->proxy_interface, strlen(optarg)*sizeof(char));
-              strcpy(proxy_state->proxy_interface, optarg);
-              proxy_state->proxy_interface[strlen(optarg)] = '\0';
+          	  // if (strcmp(optarg,"any"))
+             //    proxy_state->proxy_interface = INADDR_ANY;
               break;
           case 'o': //mng port TODO
           	  proxy_state->confPort = atoi(optarg);	

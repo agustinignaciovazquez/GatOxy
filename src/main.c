@@ -59,7 +59,7 @@ main(int argc, char **argv) {
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family      = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_addr.s_addr = htonl(proxy_state->http_interface);
     addr.sin_port        = htons(proxy_state->port);
 
     const int server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -90,7 +90,7 @@ main(int argc, char **argv) {
     struct sockaddr_in confAddr;
     memset(&addr, 0, sizeof(confAddr));
     confAddr.sin_family      = AF_INET;
-    confAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    confAddr.sin_addr.s_addr = htonl(proxy_state->proxy_interface);
     confAddr.sin_port        = htons(proxy_state->confPort);
 
     const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP); // TODO hay que configurar lo de interface

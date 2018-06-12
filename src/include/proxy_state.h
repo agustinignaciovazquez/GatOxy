@@ -30,10 +30,10 @@ typedef struct global_proxy_state {
     char *filters_stderr;
 
     /** interfaz http */
-    char *http_interface;
+    int http_interface;
 
     /** interfaz proxy */
-    char *proxy_interface;
+    int proxy_interface;
 
     /** buffer */
     unsigned buffer;
