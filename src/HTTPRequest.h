@@ -8,7 +8,7 @@
 #include "buffer.h"
 
 /**
- * HTTPRequest.c -- parser de requests HTTP
+ * HTTPRequest -- parser de requests HTTP
  */
 
 //-------------------------RFC DEFINES TO PARSE --------------------
@@ -168,155 +168,181 @@ static const char *HEADER_STRING[] = {
 };
 
 static const char * VERSION_STRING = "HTTP/1.";
+
 /** chequear si el mensaje ya paso por el proxy */
 static const char * PROXY_HEADER = "ABC-Proxy: true\r\n";
 
 enum uri_state {
-    /** transiciona a: path, schema */
-    uri_init,
-    /** transiciona a: invalid, slash */
-    uri_schema,
-    /** transiciona a: invalid, slash_slash */
-    uri_slash,
-    /** transiciona a: invalid, slash_slash */
-    uri_slash_slash,
-    /** transiciona a: invalid, auth, auth_userinfo, auth_host
-     *  auth_port, ipv6, path, query
-     */
-    uri_auth,
-    /** transiciona a: invalid */
-    uri_auth_userinfo,
-    /** transiciona a: invalid, auth, auth_userinfo, auth_host
-     *  auth_port, ipv6, path, query
-     */
-    uri_auth_host,
-    /** transiciona a : invalid, auth_port, query, path */
-    uri_auth_port,
-    /** transiciona a : invalid, ipv6, auth_port */
-    uri_ipv6,
-    /** transiciona a : path, query, done */
-    uri_path,
-    /** transiciona a : path, query, done */
-    uri_query,
-    /** abort */
-    uri_invalid,
-    /** done */
-    uri_done,
+  /** transiciona a: path, schema */
+  uri_init,
+  /** transiciona a: invalid, slash */
+  uri_schema,
+  /** transiciona a: invalid, slash_slash */
+  uri_slash,
+  /** transiciona a: invalid, slash_slash */
+  uri_slash_slash,
+  /** transiciona a: invalid, auth, auth_userinfo, auth_host
+   *  auth_port, ipv6, path, query
+   */
+  uri_auth,
+  /** transiciona a: invalid */
+  uri_auth_userinfo,
+  /** transiciona a: invalid, auth, auth_userinfo, auth_host
+   *  auth_port, ipv6, path, query
+   */
+  uri_auth_host,
+  /** transiciona a : invalid, auth_port, query, path */
+  uri_auth_port,
+  /** transiciona a : invalid, ipv6, auth_port */
+  uri_ipv6,
+  /** transiciona a : path, query, done */
+  uri_path,
+  /** transiciona a : path, query, done */
+  uri_query,
+  /** abort */
+  uri_invalid,
+  /** done */
+  uri_done,
 };
 
 enum header_autom_state {
-    /** transiciona a : invalid, content_length_check, host_check,
-     * proxy_check 
-     */
-    header_init,
-    /** transiciona a : name, value_start */
-    header_name,
-    /** transiciona a : invalid, value, done_cr */
-    header_value,
-    /** transiciona a : value_start */
-    header_value_start,
-    /** transiciona a : done */
-    header_done_cr,
-    /** done */
-    header_done,
-    /** transicion a: invalid, content_length_consume_start, name, 
-     *  content_length_check
-     */
-    header_content_length_check,
-    /** transicion a: host_check, invalid, name, host_consume_start*/
-    header_host_check,
-    /** transicion a: invalid, proxy_check, value_start, name, done */
-    header_proxy_check,
-    /** transicion a: content_length_consume, done_cr */
-    header_content_length_consume,
-    /** transicion a: host_consume, port_consume, done_cr */
-    header_host_consume,
-    /** transicion a: invalid, port_consume, done_cr */
-    header_port_consume,
-    /** transicion a: content_length_consume */
-    header_content_length_consume_start,
-    /** transicion a: host_consume */
-    header_host_consume_start,
-    /** transicion a: invalid, name, length_consume_start, 
-     *  content_length_check, value_start
-     */
-    header_transfer_encoding_case,
-    header_content_length_case,
-    header_content_encoding_case,
-    header_content_type_case,
-    header_charset_case,
-    header_content_case,
-    header_content_encoding_recon,
-    header_content_type_recon,
-    header_charset_recon,
-    header_transfer_encoding_check,
-    header_content_type_check,
-    header_content_encoding_check,
-    header_charset_check,
-    header_transfer_encoding_consume,
-    header_transfer_encoding_consume_start,
-    header_content_encoding_consume_start,
-    header_content_type_consume_start,
-    /** abort */
-    header_invalid,
+  /** transiciona a : invalid, content_length_check, host_check,
+   * proxy_check 
+   */
+  header_init,
+  /** transiciona a : name, value_start */
+  header_name,
+  /** transiciona a : invalid, value, done_cr */
+  header_value,
+  /** transiciona a : value_start */
+  header_value_start,
+  /** transiciona a : done */
+  header_done_cr,
+  /** done */
+  header_done,
+  /** transicion a: invalid, content_length_consume_start, name, 
+   *  content_length_check
+   */
+  header_content_length_check,
+  /** transicion a: host_check, invalid, name, host_consume_start*/
+  header_host_check,
+  /** transicion a: invalid, proxy_check, value_start, name, done */
+  header_proxy_check,
+  /** transicion a: content_length_consume, done_cr */
+  header_content_length_consume,
+  /** transicion a: host_consume, port_consume, done_cr */
+  header_host_consume,
+  /** transicion a: invalid, port_consume, done_cr */
+  header_port_consume,
+  /** transicion a: content_length_consume */
+  header_content_length_consume_start,
+  /** transicion a: host_consume */
+  header_host_consume_start,
+  /** transicion a: invalid, name, length_consume_start, 
+   *  content_length_check, value_start
+   */
+  header_transfer_encoding_case,
+  header_content_length_case,
+  header_content_encoding_case,
+  header_content_type_case,
+  header_charset_case,
+  header_content_case,
+  header_content_encoding_recon,
+  header_content_type_recon,
+  header_charset_recon,
+  header_transfer_encoding_check,
+  header_content_type_check,
+  header_content_encoding_check,
+  header_charset_check,
+  header_transfer_encoding_consume,
+  header_transfer_encoding_consume_start,
+  header_content_encoding_consume_start,
+  header_content_type_consume_start,
+  /** abort */
+  header_invalid,
 };
 
 enum http_state {
-    /** transicion a: get_method, post_method, head_method, unsupported_method */
-    http_method,
-    /** transicion a: absolute_uri, unsupported_method, check_method */
-    http_check_method,
-    /** transicion a: error_uri_too_long */
-    http_absolute_uri,
-    /** transicion a: version, done_cr, unsupported_version */
-    http_version,
-    http_version_num,
-    http_done_cr,
-    /** transicion a: done_cr_cr, headers_start, error_no_end */
-    http_done_cr_cr,
-    /** transicion a: header_init, body_start */
-    http_headers_start,
-    /** transicion a: parsear headers */
-    http_headers,
-    /** transicion a: body, error_malformed_start */
-    http_body_start,
-    /** transicion a: done */
-    http_body,
-    /** done */
-    http_done,
-    /** abort */
-    http_error_unsupported_method,
-    http_error_uri_too_long,
-    http_error_header_too_long,
-    http_error_invalid_uri,
-    http_error_unsupported_version,
-    http_error_no_end,
-    http_error_malformed_request,
-    http_error_unsupported_encoding,
-    http_error_unsupported_code,
-    http_error_reason_too_long,
-    http_error_malformed_response,
-    http_sp,
-    http_status_code,
-    http_status_reason,
+  /** transicion a: get_method, post_method, head_method, unsupported_method */
+  http_method,
+  /** transicion a: absolute_uri, unsupported_method, check_method */
+  http_check_method,
+  /** transicion a: error_uri_too_long */
+  http_absolute_uri,
+  /** transicion a: version, done_cr, unsupported_version */
+  http_version,
+  http_version_num,
+  http_done_cr,
+  /** transicion a: done_cr_cr, headers_start, error_no_end */
+  http_done_cr_cr,
+  /** transicion a: header_init, body_start */
+  http_headers_start,
+  /** transicion a: parsear headers */
+  http_headers,
+  /** transicion a: body, error_malformed_start */
+  http_body_start,
+  /** transicion a: done */
+  http_body,
+  /** done */
+  http_done,
+  /** abort */
+  http_error_unsupported_method,
+  http_error_uri_too_long,
+  http_error_header_too_long,
+  http_error_invalid_uri,
+  http_error_unsupported_version,
+  http_error_no_end,
+  http_error_malformed_request,
+  http_error_unsupported_encoding,
+  http_error_unsupported_code,
+  http_error_reason_too_long,
+  http_error_malformed_response,
+  http_sp,
+  http_status_code,
+  http_status_reason,
 };
 
+/* STRUCT HTTP_REQUEST
+    @method metodo seleccionado
+    @absolute_uri guarda la uri absoluta
+    @fqdn guarda el domain name
+    @http_version version de http
+    @headers_raw string que contiene headers con sus values
+    @headers puntero al string de headers
+    @dest_port puerto destino
+    @header_host valor del header "Host"
+    @header_content_length contiene el valor del header "Content_length"
+*/
 struct http_request {
-    enum  http_method_type   method;
-    char  absolute_uri[MAX_URI_LENGTH];
-    char  fqdn[MAX_FQDN];
-    char http_version;
-    char headers_raw[MAX_HEADERS_LENGTH_ARRAY];
-    char * headers;
-    in_port_t             dest_port;
-    char header_host[MAX_FQDN];
-    uint32_t header_content_length;
+  enum  http_method_type   method;
+  char  absolute_uri[MAX_URI_LENGTH];
+  char  fqdn[MAX_FQDN];
+  char http_version;
+  char headers_raw[MAX_HEADERS_LENGTH_ARRAY];
+  char * headers;
+  in_port_t             dest_port;
+  char header_host[MAX_FQDN];
+  uint32_t header_content_length;
 };
 
+
+/* STRUCT HTTP_PARSER
+    @request puntero a estructura request
+    @state estados para manejar el flujo de parseo
+    @uri_state " "
+    @h_state "  "
+    @i_host puntero para avanzar por el host
+    @i_header puntero para avanzar por el header
+    @host_defined flag que nos permite distinguir si ya se parseo el host
+    @content_length valor del header "Content-Length"
+    @body_found flag para ver si hay un body
+    @is_proxy_connection distingue si el mensaje proviene de nuestor proxy
+    @n cuantos bytes tenemos que leer
+    @i cuantos bytes ya leimos
+*/
 struct http_parser {
-   struct http_request *request;
-   enum http_state state;
-  /** private only for automata uri check */
+  struct http_request *request;
+  enum http_state state;
   enum uri_state uri_state;
   enum header_autom_state h_state;
   uint16_t i_host;
@@ -326,10 +352,8 @@ struct http_parser {
   bool body_found;
   bool is_proxy_connection;
 
-   /** cuantos bytes tenemos que leer*/
-   uint16_t n;
-   /** cuantos bytes ya leimos */
-   uint16_t i;
+  uint16_t n;
+  uint16_t i;
 };
 
 /** inicializa el parser */
@@ -377,19 +401,23 @@ void http_parser_close(struct http_parser *p);
 int
 http_marshall(buffer *b, struct http_request * req, buffer *b2);
 
+/** estados de respuesta */
 enum http_response_status {
-    status_succeeded                          = 0x00,
-    status_general_proxy_server_failure       = 0x01,
-    status_connection_not_allowed_by_ruleset  = 0x02,
-    status_network_unreachable                = 0x03,
-    status_host_unreachable                   = 0x04,
-    status_connection_refused                 = 0x05,
-    status_ttl_expired                        = 0x06,
-    status_command_not_supported              = 0x07,
-    status_address_type_not_supported         = 0x08,
-    status_unavailable_service                = 0x09,
-    status_server_unreachable                 = 0x0A,
+
+  status_succeeded                          = 0x00,
+  status_general_proxy_server_failure       = 0x01,
+  status_connection_not_allowed_by_ruleset  = 0x02,
+  status_network_unreachable                = 0x03,
+  status_host_unreachable                   = 0x04,
+  status_connection_refused                 = 0x05,
+  status_ttl_expired                        = 0x06,
+  status_command_not_supported              = 0x07,
+  status_address_type_not_supported         = 0x08,
+  status_unavailable_service                = 0x09,
+  status_server_unreachable                 = 0x0A,
+  status_bad_request                        = 0x0B,
 };
+
 /** convierte a errno en socks_response_status */
 enum http_response_status errno_to_socks(int e);
 #endif

@@ -1,16 +1,21 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-/** general proxy state */
+/**
+ * proxystate -- toma las metricas del uso del proxy
+ */
+
+/** estado general del proxy */
 typedef struct global_proxy_state {
-    /** registers the amount of http bytes processed */
-    unsigned                      bytesTransfered;
+
+    /** registrar la cantidad de bytes transferidos */
+    unsigned bytesTransfered;
     
-    /** listening ports */
+    /** ports de escucha */
     unsigned port;
     unsigned confPort;
 
-    /** transformation enabled */
+    /** flag de transformacion */
     bool do_transform;
 
     /** transformation command */
@@ -35,10 +40,10 @@ typedef struct global_proxy_state {
 
 } global_proxy_state;
 
-/** create proxy state */
+/** crear estado de proxy */
 bool
 proxy_state_create(int argc, const char **argv);
 
-/** destroy proxy state */
+/** destruir estado de proxy */
 void
 proxy_state_destroy();

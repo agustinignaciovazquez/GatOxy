@@ -5,11 +5,11 @@
 #include <ctype.h>
 #include "logging.h"
 #include "proxy_state.h"
-
+#include <string.h>
 /**
-* The global state of the proxy at any time.
-* should be accesible to all of the proxy using extern
-*/
+ * El estado global del proxy en cualquier momento, deberia poderse acceder 
+ * desde cualquier parte del proxy
+ */
 global_proxy_state *proxy_state;
 
 int parse_cli_options(int argc, char **argv);
