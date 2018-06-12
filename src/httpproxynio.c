@@ -363,15 +363,20 @@ socksv5_passive_accept(struct selector_key *key) {
     struct sockaddr_storage       client_addr;
     socklen_t                     client_addr_len = sizeof(client_addr);
     struct socks5 *               state           = NULL;
+    struct timeval tv;
+    tv.tv_usec = 0; 
+    tv.tv_sec = SERVER_TIMEOUT; 
 
     const int client = accept(key->fd, (struct sockaddr*) &client_addr,
                                 &client_addr_len);
+    //setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (const struct timeval *)&tv,sizeof(struct timeval));
     if(client == -1) {
         goto fail;
     }
     if(selector_fd_set_nio(client) == -1) {
         goto fail;
     }
+
     state = socks5_new(client);
     if(state == NULL) {
         // sin un estado, nos es imposible manejarlo.

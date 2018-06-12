@@ -4,6 +4,7 @@
 #include <netdb.h>
 #include "selector.h"
 
+#define SERVER_TIMEOUT 7
 /**
  * httpproxynio -- el proxy propiamente dicho, maneja las conexiones
  * 		llama a los parsers y hace el pasaje de mensajes
