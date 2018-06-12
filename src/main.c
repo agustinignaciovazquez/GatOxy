@@ -36,9 +36,6 @@ static bool done = false;
 static void
 sigterm_handler(const int signal) {
     LOG_DEBUG("received close signal. Cleaning and exiting!");
-    socksv5_pool_destroy();
-    sctp_pool_destroy();
-    proxy_state_destroy();
     done = true;
 }
 
@@ -68,6 +65,7 @@ main(int argc, char **argv) {
     const int server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (server < 0) {
         err_msg = "unable to create http socket";
+        LOG_ERROR("unable to create http socket", "", "");
         goto finally;
     }
 
@@ -76,11 +74,13 @@ main(int argc, char **argv) {
 
     if (bind(server, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
         err_msg = "unable to bind http socket";
+        LOG_ERROR("unable to bind http socket", "", "");
         goto finally;
     }
 
     if (listen(server, 20) < 0) {
         err_msg = "unable to listen http";
+        LOG_ERROR("unable to listen http", "", "");
         goto finally;
     }
 
@@ -96,6 +96,7 @@ main(int argc, char **argv) {
     const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);;
     if (confServer < 0) {
         err_msg = "unable to create sctp socket";
+        LOG_ERROR("unable to create sctp socket", "", "");
         goto finally;
     }
     // man 7 ip. no importa reportar nada si falla.
@@ -103,11 +104,13 @@ main(int argc, char **argv) {
 
     if (bind(confServer, (struct sockaddr*) &confAddr, sizeof(confAddr)) < 0) {
         err_msg = "unable to bind sctp socket";
+        LOG_ERROR("unable to bind sctp socket", "", "");
         goto finally;
     }
 
     if (listen(confServer, 20) < 0) {
         err_msg = "unable to listen sctp";
+        LOG_ERROR("unable to listen sctp", "", "");
         goto finally;
     }
 
@@ -122,11 +125,13 @@ main(int argc, char **argv) {
 
     if (selector_fd_set_nio(server) == -1) {
         err_msg = "getting http server socket flags";
+        LOG_ERROR("getting http server socket flags", "", "");
         goto finally;
     }
 
     if (selector_fd_set_nio(confServer) == -1) {
         err_msg = "getting sctp server socket flags";
+        LOG_ERROR("getting sctp server socket flags", "", "");
         goto finally;
     }
 
@@ -140,12 +145,14 @@ main(int argc, char **argv) {
 
     if (0 != selector_init(&conf)) {
         err_msg = "initializing selector";
+        LOG_ERROR("initializing selector", "", "");
         goto finally;
     }
 
     selector = selector_new(1024);
     if (selector == NULL) {
         err_msg = "unable to create selector";
+        LOG_ERROR("unable to create selector", "", "");
         goto finally;
     }
 
@@ -159,6 +166,7 @@ main(int argc, char **argv) {
                            OP_READ, NULL);
     if (ss != SELECTOR_SUCCESS) {
         err_msg = "registering http fd";
+        LOG_ERROR("registering http fd", "", "");
         goto finally;
     }
 
@@ -172,6 +180,7 @@ main(int argc, char **argv) {
                            OP_READ, NULL);
     if (ss != SELECTOR_SUCCESS) {
         err_msg = "registering sctp fd";
+        LOG_ERROR("registering sctp fd", "", "");
         goto finally;
     }
 
@@ -179,13 +188,15 @@ main(int argc, char **argv) {
     for (; !done;) {
         err_msg = NULL;
         ss = selector_select(selector);
-        if (ss != SELECTOR_SUCCESS) {
+        if (ss != SELECTOR_SUCCESS)
+        LOG_ERROR("serving", "", ""); {
             err_msg = "serving";
             goto finally;
         }
     }
     if (err_msg == NULL) {
         err_msg = "closing";
+        LOG_ERROR("closing", "", "");
     }
 
     int ret = 0;
