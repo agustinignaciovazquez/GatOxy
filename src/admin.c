@@ -187,7 +187,7 @@ method_check(const uint8_t b, struct admin_parser* p) {
 		if (remaining_is_done(p)) {
 			if (p->request->method == type_transformer) {
 				proxy_state->transformation_types_index=0;
-				proxy_state->transformation_types = realloc(proxy_state->transformation_types, 4*sizeof(char));
+				proxy_state->transformation_types = realloc(proxy_state->transformation_types, 4*sizeof(char)); //TODO revizar q esto de reallocar cada 4 bytes funcione bien
 				proxy_state->transformation_types[0] = '\0';
 				return admin_done_field_method;
 			} else  if (p->request->method == command_transformer) {
