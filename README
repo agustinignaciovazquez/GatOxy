@@ -34,6 +34,16 @@ Ejecucion:
 
  $./proxy [-P port] -T -M mediatype,...
 
+Contruccion Cliente:
+--------------------
+
+ $ cd client
+ $ make
+
+Ejecucion Cliente:
+
+ $./client -a IP_ADDR -p PORT -c ADMIN_COMMAND
+
 Requerimientos:
 ---------------
 
