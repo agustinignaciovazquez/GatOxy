@@ -1,6 +1,4 @@
-/**
- * HTTPResponsev2.c -- Parser para responses
- */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -10,9 +8,12 @@
 
 #include "HTTPResponsev2.h"
 
-/*
- * nos permite establecer el largo maximo del proximo miembro a parsear
+
+/**
+ * HTTPResponsev2.c -- Parser para responses
  */
+
+
 static void
 remaining_set(struct http_res_parser* p, const int n) {
 
@@ -20,9 +21,6 @@ remaining_set(struct http_res_parser* p, const int n) {
     p->n = n;
 }
 
-/*
- * indica si terminamos de parsear el miembro actual
- */
 static int
 remaining_is_done(struct http_res_parser* p) {
 
@@ -131,20 +129,23 @@ content_case(const uint8_t b, struct http_res_parser* p ){
     if (!IS_URL_CHAR(a) && (a != ':')){
         return header_invalid;
     }else if(p->i_header == CONTENT_LEN){
-        if(a == 'L')
+        if(a == 'L'){
             return header_content_length_case;
-        if(a == 'T')
+        }
+        if(a == 'T'){
             return header_content_type_case;
-        if(a == 'E')
+        }
+        if(a == 'E'){
             return header_content_encoding_case;
-        if(a == ':')
+        }
+        if(a == ':'){
             return header_value_start;
+        }
         return header_name;
     }else if(a == CONTENT_STRING[p->i_header]){
         return header_content_case;
     }  
     return (a == ':') ? header_value_start : header_name;
-
 }
 
 /*
@@ -165,7 +166,6 @@ content_length_case(const uint8_t b, struct http_res_parser* p ){
         return header_content_length_case;
     }  
     return (a == ':') ? header_value_start : header_name;
-
 }
 
 /*
@@ -186,7 +186,6 @@ content_type_case(const uint8_t b, struct http_res_parser* p ){
         return header_content_type_case;
     }  
     return (a == ':') ? header_value_start : header_name;
-
 }
 
 /*
@@ -201,13 +200,12 @@ content_encoding_case(const uint8_t b, struct http_res_parser* p ){
         return header_invalid;
     }else if((p->i_header == CONTENT_ENCODING_LEN) && (a == ':')){
         return header_content_encoding_consume_start;
-    } else if(p->i_header == CONTENT_ENCODING_LEN){
+    }else if(p->i_header == CONTENT_ENCODING_LEN){
         return header_name;
     }else if(a == HEADER_RES_STRING[4][p->i_header]){
         return header_content_encoding_case;
     }
     return (a == ':') ? header_value_start : header_name;
-
 }
 
 /*
@@ -246,7 +244,6 @@ type_recon(const uint8_t b, struct http_res_parser* p) {
         p->response->content_types[p->content_types][p->i_type++] = b;
         return header_content_type_recon;
     }
-
     return header_invalid; 
     // TODO podriamos definir un estado de invalid type
 }
@@ -353,8 +350,9 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
             }
         case header_name:
             p->h_state = header_invalid;
-            if(IS_URL_CHAR(b))
+            if(IS_URL_CHAR(b)){
                 p->h_state = header_name;
+            }
             if(b == ':'){
                 p->h_state = header_value_start;
             }
@@ -366,8 +364,9 @@ header_check_automata(const uint8_t b, struct http_res_parser* p) {
             }
         case header_value:
             p->h_state = header_invalid;
-            if(b != '\0')
+            if(b != '\0'){
                 p->h_state = header_value;
+            }
             if(b == CR){
                 p->h_state = header_done_cr;
             }
@@ -460,7 +459,6 @@ header_check(const uint8_t b, struct http_res_parser* p) {
     if(remaining_is_done(p)){
         return http_error_header_too_long;
     }
-    
     p->response->headers[p->i] = b;
     p->i++;
     return header_check_automata(b,p);
@@ -494,10 +492,12 @@ extern enum http_state http_res_parser_feed (struct http_res_parser *p,
         case http_done_cr:
         case http_done_cr_cr:
             p->state = http_error_no_end;
-            if(b == CR)
+            if(b == CR){
                 p->state = http_done_cr_cr;
-            if(b == LF)
+            }
+            if(b == LF){
                 p->state = http_headers_start;
+            }
             break;
         case http_headers_start:
             p->h_state = header_init;
@@ -536,12 +536,10 @@ extern enum http_state http_res_parser_feed (struct http_res_parser *p,
 /*
  * parsea un mensaje con encoding = chunked
  */
-/*TODO terminar de limpiar cuando este listo*/
 enum chunked_state http_chunked_parser (struct http_res_parser *p, uint8_t b){
 
     switch(p->chunked_state) {
         case chunked_number:
-        fprintf(stderr, "chunk number\n" );
             p->chunked_state = chunked_error;
             b = toupper(b);
             if( IS_NUM(b) || b=='A' || b=='B' || b=='C'|| b=='D'|| b=='E'||
@@ -551,7 +549,6 @@ enum chunked_state http_chunked_parser (struct http_res_parser *p, uint8_t b){
                 }
                 p->chunked_remain[p->index] = b;
                 p->index++;
-                fprintf(stderr, "VALUE%d\n",p->chunked_remain_num  );
                 p->chunked_state = chunked_number;
             }
             if (b == CR){
@@ -560,22 +557,17 @@ enum chunked_state http_chunked_parser (struct http_res_parser *p, uint8_t b){
                 p->chunked_total_num += p->chunked_remain_num;
                 p->chunked_state = chunked_cr_number;
             }
-        break; 
+            break; 
         case chunked_cr_number:
-        fprintf(stderr, "chunk cr number\n" );
             p->chunked_state = chunked_error;
             if (b == LF){
                 p->chunked_state = chunked_body;
-                if(p->chunked_remain_num == 0)
+                if(p->chunked_remain_num == 0){
                     p->chunked_state = chunked_end_trailer;
+                }
             }
-        break;
-
+            break;
         case chunked_body:
-
-        fprintf(stderr, "chunk body\n" );
-            
-            fprintf(stderr, "VALUE%d\n",p->chunked_remain_num  );
             p->chunked_state = chunked_body;
             if(p->chunked_remain_num <= 0){
                 p->chunked_state = chunked_error;
@@ -583,29 +575,22 @@ enum chunked_state http_chunked_parser (struct http_res_parser *p, uint8_t b){
             if(b == CR && p->chunked_remain_num == 0){
                     p->chunked_state = chunked_cr_body;
             }
-            
             p->chunked_remain_num--;
-        break;
-
+            break;
         case chunked_cr_body:
-        fprintf(stderr, "chunk cr body\n" );
             p->chunked_state = chunked_error;
             if (b == LF){
                 p->index = 0;
                 p->chunked_remain_num = 0;
                 p->chunked_state = chunked_number;
             }
-        break;
+            break;
         case chunked_end_trailer:
-        fprintf(stderr, "chunk end trailer\n" );
-        break;
+            break;
         case chunked_error:
-        fprintf(stderr, "chunk error\n" );
-        break;
+            break;
         default:
-            //ffprintf(stderr, stderr, "unknown state %d\n", p->state);
-            //abort();
-        break;
+            break;
     }
 
     return p->chunked_state;
@@ -652,7 +637,6 @@ extern void http_res_parser_close(struct http_res_parser *p) {
 /*
  * consume un caracter del buffer
  */
-/*TODO limpiar cuando se termine de usar*/
 extern enum http_state
 http_res_consume(buffer *b, struct http_res_parser *p, bool *errored) {
 
@@ -660,17 +644,8 @@ http_res_consume(buffer *b, struct http_res_parser *p, bool *errored) {
     while(buffer_can_read(b)) {
         const uint8_t c = buffer_read(b);
         buffer_write(p->buffer_output , c);
-        fprintf(stderr, "CONSUMO %c\n", c);
         st = http_res_parser_feed(p, c);
         if (http_is_done(st, errored) || p->body_found == true){
-            fprintf(stderr, "CONTENT LENGTH = %d \n", 
-                    p->response->header_content_length);
-            fprintf(stderr, "IDENTITY = %d\n", p->is_identity);
-            fprintf(stderr, "CHUNKED = %d\n", p->is_chunked);
-            fprintf(stderr, "M TYPE 1 = %s \n", 
-                    p->response->content_types[0]);
-            fprintf(stderr, "M TYPE 2 = %s \n",  
-                    p->response->content_types[1]);
             break;
         }
     }
@@ -689,10 +664,8 @@ http_res_marshall(buffer *b, struct http_response * res, buffer * b2){
     headers_len = strlen(res->headers);
     version_len = strlen(VERSION_STRING);
     code_reason_len = strlen(res->code_reason);
-    total_len = version_len+headers_len + STATUS_CODE_LEN + code_reason_len 
-                    + 7;
- 
-
+    total_len = version_len+headers_len + STATUS_CODE_LEN + 
+                    code_reason_len + 7;
     if(n < total_len) {
         return -1;
     }
@@ -702,7 +675,7 @@ http_res_marshall(buffer *b, struct http_response * res, buffer * b2){
     buff[0] = res->http_version;
     buff[1] = SP;   
     buff += 2;
-    sprintf(buff, "%d", res->status_code); // TODO limpar?
+    sprintf(buff, "%d", res->status_code);
     buff += STATUS_CODE_LEN;
     buff[0] = SP;
     buff++;

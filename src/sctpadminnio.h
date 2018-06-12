@@ -4,6 +4,10 @@
 #include <netdb.h>
 #include "selector.h"
 
+/**
+ * sctpadminnio -- manejo de conexiones sctp
+ */
+
 /** handler del socket pasivo que atiende conexiones sctp admin */
 void
 sctp_passive_accept(struct selector_key *key);
