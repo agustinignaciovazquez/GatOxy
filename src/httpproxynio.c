@@ -241,7 +241,6 @@ copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p, bool shou
 /** crea un nuevo `struct socks5' */
 static struct socks5 *
 socks5_new(int client_fd) {
-
     struct socks5 *ret;
     if(pool == NULL) {
         ret = malloc(sizeof(*ret));
@@ -263,8 +262,7 @@ socks5_new(int client_fd) {
 
     int buffer_size = get_buffer_size();
     ret->headers_copy = malloc(sizeof(struct buffer));
-    ret->raw_headers_buffer = malloc(get_headers_buffer_size() 
-                                        * sizeof(uint8_t));
+    ret->raw_headers_buffer = malloc(get_headers_buffer_size() * sizeof(uint8_t));
     buffer_init(ret->headers_copy, get_headers_buffer_size() ,
                     ret->raw_headers_buffer);
     ret->raw_buff_a = malloc(buffer_size);
@@ -658,7 +656,6 @@ request_connecting_init(const unsigned state, struct selector_key *key) {
 static unsigned
 request_connecting(struct selector_key *key) {
 
-    fprintf(stderr, "connecting"); //TODO borrar
     int error;
     socklen_t len = sizeof(error);
     struct connecting *d  = &ATTACHMENT(key)->orig_conn;
@@ -690,7 +687,7 @@ request_connecting(struct selector_key *key) {
     s |= selector_set_interest(key->s, *d->client_fd, OP_WRITE);
     s |= selector_set_interest_key(key, OP_READ);
     s |= selector_set_interest (key->s, *d->origin_fd, OP_WRITE);
-    fprintf(stderr, "conectando"); //TODO borrar 
+    
     return SELECTOR_SUCCESS == s ? COPY : ERROR;
 }
 static char * get_error_string(enum http_response_status status){
@@ -774,7 +771,7 @@ copy_init(const unsigned state, struct selector_key *key) {
     buffer * buff           = ATTACHMENT(key)->headers_copy;
     d->fd                   = &ATTACHMENT(key)->client_fd;
     d->rb                   = ATTACHMENT(key)->headers_copy;
-    buffer_init(&ATTACHMENT(key)->buffer_transform, DEFAULT_BUFFER_SIZE + 1,            ATTACHMENT(key)->buffer_write_transform);
+    buffer_init(&ATTACHMENT(key)->buffer_transform, DEFAULT_BUFFER_SIZE + 1, ATTACHMENT(key)->buffer_write_transform);
     d->wb                   = &ATTACHMENT(key)->buffer_transform;
     d->duplex               = OP_READ | OP_WRITE;
     d->client               = true;
@@ -829,8 +826,6 @@ copy_ptr(struct selector_key *key) {
     return  d;
 }
 
-bool transform = false; //TODO esto queda ?
-
 /** lee bytes de un socket y los encola para ser escritos en otro socket */
 static unsigned
 copy_r(struct selector_key *key) {
@@ -868,13 +863,11 @@ copy_r(struct selector_key *key) {
                 int st = http_res_consume(b, &d->response.parser, &error);
                 if(http_res_is_done(st, 0)) {
                     if(error){
-                        return ERROR;//TODO ACA AGREGAR ERROR REQUEST AGUS
+                        return ERROR;
                     }
                      
-                    fprintf(stderr, "LLEGO ACA\n" );
                     d->should_filter = should_filter(d->response.parser.content_types, d->response.response.content_types);
-                    fprintf(stderr, "%d\n", d->should_filter );
-
+                
                     if(proxy_state->do_transform == true && 
                         d->response.parser.is_identity == true && d->should_filter == true &&  
                             ATTACHMENT(key)->transformation == NULL) {
@@ -937,7 +930,7 @@ copy_r(struct selector_key *key) {
 
 bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]) {
 
-    /*int j = MAX_TYPES_LEN;
+    int j = MAX_TYPES_LEN;
     char * resp_string = calloc(0,j);
     char * token;
     char str[41] = "text/html,text/plain;charset=UTF-8,img/*";
@@ -962,9 +955,7 @@ bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]) {
    }
     
     free(resp_string);   
-    return ret;*/
-    return true;
-
+    return ret;
 }
 
 /** escribe bytes encolados */
@@ -1103,7 +1094,13 @@ socksv5_done(struct selector_key* key) {
             close(t->inputTransformation[WRITE]);
             selector_unregister_fd(key->s,t->inputTransformation[WRITE] );
         }
+        free(t);
+        ATTACHMENT(key)->transformation = NULL;
     }
+    free(ATTACHMENT(key)->headers_copy);
+    free(ATTACHMENT(key)->raw_headers_buffer);
+    free(ATTACHMENT(key)->raw_buff_a);
+    free(ATTACHMENT(key)->raw_buff_b);
 }
 
 void
