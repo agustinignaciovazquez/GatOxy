@@ -401,6 +401,7 @@ request_process(struct selector_key* key, struct request_st* d) {
                 proxy_state->transformation_types);
             break;
         default:
+            break;
     }
 
     /**
