@@ -47,7 +47,7 @@ proxy_state_create(int argc, const char **argv) {
     int ret = parse_cli_options(argc, argv);
     if (ret < 0) {
     	LOG_ERROR("Failed to initialize proxy conf. ABORTING!");
-    	// TODO free de la estructura entera.
+    	proxy_state_destroy();
     }
 	return true;
 }
@@ -56,6 +56,9 @@ void
 proxy_state_destroy() {
 	free(proxy_state->transformation_command);
 	free(proxy_state->transformation_types);
+	free(proxy_state->filters_stderr);
+	free(proxy_state->proxy_interface);
+	free(proxy_state->http_interface);
     free(proxy_state);
 }
 
