@@ -14,18 +14,30 @@ typedef struct global_proxy_state {
     bool do_transform;
 
     /** transformation command */
-    char transformation_command[100];
+    char *transformation_command;
     int transformation_command_index;
 
     /** transformation command */
-    char transformation_types[100];
+    char *transformation_types;
     int transformation_types_index;
+
+    /** filters stderr */
+    char *filters_stderr;
+
+    /** interfaz http */
+    char *http_interface;
+
+    /** interfaz proxy */
+    char *proxy_interface;
+
+
+
 
 } global_proxy_state;
 
 /** create proxy state */
 bool
-proxy_state_create();
+proxy_state_create(int argc, char **argv);
 
 /** destroy proxy state */
 void
