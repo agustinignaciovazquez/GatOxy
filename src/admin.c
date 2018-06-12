@@ -187,13 +187,13 @@ method_check(const uint8_t b, struct admin_parser* p) {
 		if (remaining_is_done(p)) {
 			if (p->request->method == type_transformer) {
 				proxy_state->transformation_types_index=0;
+				proxy_state->transformation_types = realloc(proxy_state->transformation_types, 4*sizeof(char));
 				proxy_state->transformation_types[0] = '\0';
-				proxy_state->transformation_types[1] = '\0';
 				return admin_done_field_method;
 			} else  if (p->request->method == command_transformer) {
 				proxy_state->transformation_command_index=0;
+				proxy_state->transformation_command = realloc(proxy_state->transformation_command, 4*sizeof(char));
 				proxy_state->transformation_command[0]= '\0';
-				proxy_state->transformation_command[1]= '\0';
 				return admin_done_field_method;
 			}
 			else
@@ -220,18 +220,23 @@ parse_data(const uint8_t b, struct admin_parser* p) {
 	if (LF == b) return admin_done;
 
 	// write to var
-	if (p->request->method == type_transformer && proxy_state->transformation_types_index < 99) {
+	if (p->request->method == type_transformer ) {
 		proxy_state->transformation_types[proxy_state->transformation_types_index] = b;
 		proxy_state->transformation_types_index++;
-		proxy_state->transformation_types[proxy_state->transformation_types_index] = '\0';
+		if (proxy_state->transformation_types_index % 3 == 0) {// must realloc
+			proxy_state->transformation_types = realloc(proxy_state->transformation_types, proxy_state->transformation_types_index+3*sizeof(char));
+			proxy_state->transformation_types[proxy_state->transformation_types_index] = '\0';
+		}
 		return admin_data;
 	} else if (p->request->method == command_transformer && proxy_state->transformation_command_index < 99) {
 		proxy_state->transformation_command[proxy_state->transformation_command_index] = b;
 		proxy_state->transformation_command_index++;
-		proxy_state->transformation_command[proxy_state->transformation_command_index] = '\0';
+		if (proxy_state->transformation_command_index % 3 == 0) { // must realloc
+			proxy_state->transformation_command = realloc(proxy_state->transformation_command, proxy_state->transformation_command_index+3*sizeof(char));
+			proxy_state->transformation_command[proxy_state->transformation_command_index] = '\0';
+		}
 		return admin_data;
 	}
-
 	return admin_error_bad_request;
 }
 
