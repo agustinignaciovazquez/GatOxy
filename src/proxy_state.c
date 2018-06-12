@@ -21,9 +21,9 @@ proxy_state_create(int argc, const char **argv) {
 
 	// Set Defaults
 	proxy_state->bytesTransfered = 0;
-	proxy_state->port = 1082;
+	proxy_state->port = 1080;
   proxy_state->buffer = 5000;
-	proxy_state->confPort = 1083;
+	proxy_state->confPort = 1081;
 	proxy_state->do_transform = false;
 	proxy_state->transformation_command_index=0;
 	
@@ -65,8 +65,6 @@ int parse_cli_options(int argc, char **argv) {
 
     int c;
     char *aux;
-LOG_DEBUG("argv");
-printf("%d\n",argc );
     while ((c = getopt (argc, argv, "e:hl:L:M:o:p:t:v:T")) != -1)
         switch (c) {
           case 'h': //help
