@@ -35,7 +35,7 @@ static bool done = false;
 
 static void
 sigterm_handler(const int signal) {
-    printf("signal %d, cleaning up and exiting\n",signal);
+    printf("signal %d, cleaning up and exiting\n", signal);
     LOG_DEBUG("received close signal. Cleaning and exiting!");
     done = true;
 }
@@ -44,27 +44,9 @@ int
 main(const int argc, const char **argv) {
 
 
-    LOG_DEBUG("Initializing proxy state");
-    if (proxy_state_create() == false) {
+    LOG_PRIORITY("Initializing proxy state");
+    if (proxy_state_create(argc, argv) == false) {
         LOG_ERROR("failed to init proxy state");
-        return 1;
-    }
-
-    if(argc == 1) {
-        // utilizamos el default
-    } else if(argc == 2) {
-        char *end     = 0;
-        const long sl = strtol(argv[1], &end, 10);
-
-        if (end == argv[1]|| '\0' != *end 
-           || ((LONG_MIN == sl || LONG_MAX == sl) && ERANGE == errno)
-           || sl < 0 || sl > USHRT_MAX) {
-            fprintf(stderr, "port should be an integer: %s\n", argv[1]);
-            return 1;
-        }
-        proxy_state->port = sl;
-    } else {
-        fprintf(stderr, "Usage: %s <port>\n", argv[0]);
         return 1;
     }
 
@@ -83,15 +65,15 @@ main(const int argc, const char **argv) {
     addr.sin_port        = htons(proxy_state->port);
 
     const int server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if(server < 0) {
+    if (server < 0) {
         err_msg = "unable to create http socket";
         goto finally;
     }
 
     // man 7 ip. no importa reportar nada si falla.
-    setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int));
+    setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &(int) { 1 }, sizeof(int));
 
-    if(bind(server, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
+    if (bind(server, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
         err_msg = "unable to bind http socket";
         goto finally;
     }
@@ -111,14 +93,14 @@ main(const int argc, const char **argv) {
     confAddr.sin_port        = htons(proxy_state->confPort);
 
     const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);;
-    if(confServer < 0) {
+    if (confServer < 0) {
         err_msg = "unable to create sctp socket";
         goto finally;
     }
     // man 7 ip. no importa reportar nada si falla.
-    setsockopt(confServer, SOL_SOCKET, SO_REUSEADDR, &(int){ 1 }, sizeof(int));
+    setsockopt(confServer, SOL_SOCKET, SO_REUSEADDR, &(int) { 1 }, sizeof(int));
 
-    if(bind(confServer, (struct sockaddr*) &confAddr, sizeof(confAddr)) < 0) {
+    if (bind(confServer, (struct sockaddr*) &confAddr, sizeof(confAddr)) < 0) {
         err_msg = "unable to bind sctp socket";
         goto finally;
     }
@@ -128,21 +110,21 @@ main(const int argc, const char **argv) {
         goto finally;
     }
 
-    
+
     fprintf(stdout, "Listening on SCTP port %d\n", proxy_state->confPort);
-    
+
 
     // registrar sigterm es útil para terminar el programa normalmente.
     // esto ayuda mucho en herramientas como valgrind.
     signal(SIGTERM, sigterm_handler);
     signal(SIGINT,  sigterm_handler);
 
-    if(selector_fd_set_nio(server) == -1) {
+    if (selector_fd_set_nio(server) == -1) {
         err_msg = "getting http server socket flags";
         goto finally;
     }
 
-    if(selector_fd_set_nio(confServer) == -1) {
+    if (selector_fd_set_nio(confServer) == -1) {
         err_msg = "getting sctp server socket flags";
         goto finally;
     }
@@ -155,17 +137,17 @@ main(const int argc, const char **argv) {
         },
     };
 
-    if(0 != selector_init(&conf)) {
+    if (0 != selector_init(&conf)) {
         err_msg = "initializing selector";
         goto finally;
     }
 
     selector = selector_new(1024);
-    if(selector == NULL) {
+    if (selector == NULL) {
         err_msg = "unable to create selector";
         goto finally;
     }
-    
+
     // register master http socket
     const struct fd_handler socksv5 = {
         .handle_read       = socksv5_passive_accept,
@@ -173,8 +155,8 @@ main(const int argc, const char **argv) {
         .handle_close      = NULL, // nada que liberar
     };
     ss = selector_register(selector, server, &socksv5,
-                                              OP_READ, NULL);
-    if(ss != SELECTOR_SUCCESS) {
+                           OP_READ, NULL);
+    if (ss != SELECTOR_SUCCESS) {
         err_msg = "registering http fd";
         goto finally;
     }
@@ -186,38 +168,38 @@ main(const int argc, const char **argv) {
         .handle_close      = NULL, // nada que liberar
     };
     ss = selector_register(selector, confServer, &sctp,
-                                              OP_READ, NULL);
-    if(ss != SELECTOR_SUCCESS) {
+                           OP_READ, NULL);
+    if (ss != SELECTOR_SUCCESS) {
         err_msg = "registering sctp fd";
         goto finally;
     }
 
     // start ininite proxy loop
-    for(;!done;) {
+    for (; !done;) {
         err_msg = NULL;
         ss = selector_select(selector);
-        if(ss != SELECTOR_SUCCESS) {
+        if (ss != SELECTOR_SUCCESS) {
             err_msg = "serving";
             goto finally;
         }
     }
-    if(err_msg == NULL) {
+    if (err_msg == NULL) {
         err_msg = "closing";
     }
 
     int ret = 0;
 finally:
-    if(ss != SELECTOR_SUCCESS) {
-        fprintf(stderr, "%s: %s\n", (err_msg == NULL) ? "": err_msg,
-                                  ss == SELECTOR_IO
-                                      ? strerror(errno)
-                                      : selector_error(ss));
+    if (ss != SELECTOR_SUCCESS) {
+        fprintf(stderr, "%s: %s\n", (err_msg == NULL) ? "" : err_msg,
+                ss == SELECTOR_IO
+                ? strerror(errno)
+                : selector_error(ss));
         ret = 2;
-    } else if(err_msg) {
+    } else if (err_msg) {
         perror(err_msg);
         ret = 1;
     }
-    if(selector != NULL) {
+    if (selector != NULL) {
         selector_destroy(selector);
     }
     selector_close();
@@ -226,7 +208,7 @@ finally:
     sctp_pool_destroy();
     proxy_state_destroy();
 
-    if(server >= 0) {
+    if (server >= 0) {
         close(server);
     }
     return ret;
