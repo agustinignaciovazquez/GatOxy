@@ -37,12 +37,10 @@ proxy_state_create(int argc, const char **argv) {
 	
 	char default_proxy_interface[] = "localhost";
 	proxy_state->proxy_interface = calloc(strlen(default_proxy_interface) , sizeof(char));
-	strcpy(proxy_state->proxy_interface, "localhost");
-	
-	proxy_state->transformation_types_index = 0;
-	proxy_state->transformation_types[1]= '\0';
+	strcpy(proxy_state->proxy_interface, "localhost");	
 
 	proxy_state->http_interface = calloc(1 , sizeof(char));
+  proxy_state->transformation_types_index = 0;
 	proxy_state->transformation_types = calloc(1 , sizeof(char));
 
     int ret = parse_cli_options(argc, argv);
