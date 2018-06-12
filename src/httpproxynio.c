@@ -902,7 +902,7 @@ copy_r(struct selector_key *key) {
                                         key->data);
                         d->response.parser.buffer_output = &t->input_buffer;
                         if (s != SELECTOR_SUCCESS) {
-                            printf("HUBO UN ERROR");
+                            LOG_ERROR("error on transform OP", "", "");
                         }
                     }
                 }  
