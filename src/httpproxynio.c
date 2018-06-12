@@ -137,7 +137,7 @@ struct transformation_data {
 
     /** buffer para pasar los datos a transformar */
     buffer      input_buffer;
-    uint8_t     raw_input_buffer[DEFAULT_BUFFER_SIZE];
+    uint8_t *    raw_input_buffer;
 };
 
 
@@ -186,11 +186,6 @@ struct socks5 {
     int                           origin_domain;
     int                           origin_fd;
 
-
-    buffer *                      headers_copy;
-
-    uint8_t  *                    raw_headers_buffer;
-
     struct transformation_data *  transformation;
 
     /** maquinas de estados */
@@ -205,16 +200,17 @@ struct socks5 {
     struct copy                   orig_copy;
 
     /** buffers para transformation */
-    uint8_t                       buffer_write_transform[DEFAULT_BUFFER_SIZE
-                                                             + 1];
+    uint8_t *                     buffer_write_transform;
     buffer                        buffer_transform;
 
     /** buffers para ser usados read_buffer, write_buffer.*/
     uint8_t *                     raw_buff_a;
     uint8_t *                     raw_buff_b;
+    uint8_t *                    raw_headers_buffer;
     buffer                        read_buffer;
     buffer                        write_buffer;
-    
+    buffer *                      headers_copy;
+
     /** cantidad de referencias a este objeto. si es uno se debe destruir */
     unsigned                      references;
 
@@ -262,9 +258,8 @@ socks5_new(int client_fd) {
 
     int buffer_size = get_buffer_size();
     ret->headers_copy = malloc(sizeof(struct buffer));
-    ret->raw_headers_buffer = malloc(get_headers_buffer_size() * sizeof(uint8_t));
-    buffer_init(ret->headers_copy, get_headers_buffer_size() ,
-                    ret->raw_headers_buffer);
+    ret->buffer_write_transform = malloc(buffer_size * sizeof(uint8_t));
+    ret->raw_headers_buffer = malloc(buffer_size * sizeof(uint8_t));
     ret->raw_buff_a = malloc(buffer_size);
     ret->raw_buff_b = malloc(buffer_size);
 
@@ -281,7 +276,8 @@ socks5_new(int client_fd) {
     stm_init(&ret->stm);
     buffer_init(&ret->read_buffer, buffer_size, ret->raw_buff_a);
     buffer_init(&ret->write_buffer, buffer_size, ret->raw_buff_b);
-
+    buffer_init(&ret->buffer_transform, get_buffer_size(), ret->buffer_write_transform);
+    buffer_init(ret->headers_copy, get_headers_buffer_size(), ret->raw_headers_buffer);
     ret->references = 1;
 
 finally:
@@ -384,6 +380,7 @@ socksv5_passive_accept(struct selector_key *key) {
         printf("Connection failed \n");
         goto fail;
     }
+    //TODO ACA SE AGREGA CUANDO SE UNE UN USUARIO EN METRICS
     memcpy(&state->client_addr, &client_addr, client_addr_len);
     state->client_addr_len = client_addr_len;
     if(SELECTOR_SUCCESS != selector_register(key->s, client, &socks5_handler,
@@ -771,7 +768,6 @@ copy_init(const unsigned state, struct selector_key *key) {
     buffer * buff           = ATTACHMENT(key)->headers_copy;
     d->fd                   = &ATTACHMENT(key)->client_fd;
     d->rb                   = ATTACHMENT(key)->headers_copy;
-    buffer_init(&ATTACHMENT(key)->buffer_transform, DEFAULT_BUFFER_SIZE + 1, ATTACHMENT(key)->buffer_write_transform);
     d->wb                   = &ATTACHMENT(key)->buffer_transform;
     d->duplex               = OP_READ | OP_WRITE;
     d->client               = true;
@@ -867,16 +863,17 @@ copy_r(struct selector_key *key) {
                     }
                      
                     d->should_filter = should_filter(d->response.parser.content_types, d->response.response.content_types);
-                
+            
                     if(proxy_state->do_transform == true && 
                         d->response.parser.is_identity == true && d->should_filter == true &&  
                             ATTACHMENT(key)->transformation == NULL) {
-                        struct transformation_data *t = 
-                            malloc(sizeof(struct transformation_data));
+                                                
+                        struct transformation_data *t = malloc(sizeof(struct transformation_data));
                         ATTACHMENT(key)->transformation = t;
                         // t->prog = "sed -u -e 's/a/4/g' -e 's/e/3/g' -e 's/i/1/g' -e 's/o/0/g' -e's/5/-/g'"; TODO
                         t->prog = proxy_state->transformation_command; 
-                        buffer_init(&(t->input_buffer), DEFAULT_BUFFER_SIZE,
+                        t->raw_input_buffer = malloc(get_buffer_size());
+                        buffer_init(&(t->input_buffer), get_buffer_size(),
                                          t->raw_input_buffer);
 
                         selector_status s = SELECTOR_SUCCESS;
@@ -902,7 +899,7 @@ copy_r(struct selector_key *key) {
                                         key->data);
                         d->response.parser.buffer_output = &t->input_buffer;
                         if (s != SELECTOR_SUCCESS) {
-                            printf("HUBO UN ERROR");
+                            
                         }
                     }
                 }  
@@ -931,31 +928,39 @@ copy_r(struct selector_key *key) {
 bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]) {
 
     int j = MAX_TYPES_LEN;
-    char * resp_string = calloc(0,j);
+    char * resp_string = calloc(sizeof(char),j), * aux;
     char * token;
-    char str[41] = "text/html,text/plain;charset=UTF-8,img/*";
-    bool ret = false;
-    char s[2] = ";";
-    //strcpy(str,proxy_state->transformation_types);
+    char * str = calloc(sizeof(char),strlen(proxy_state->transformation_types));
+    if(str == NULL)
+        return false;
+
+    strcpy(str,proxy_state->transformation_types);
     fprintf(stderr, "%s\n", proxy_state->transformation_types);
-    token = strtok(str, s);
+    token = strtok(str, ",");
 
     for (int i = 0; i < n; i++) {
         int size_to_increase = strlen(types[i]);
         j += 7+size_to_increase;
-        resp_string = realloc(resp_string, j);
+        aux = realloc(resp_string, j);
+        if(aux == NULL){
+            free(str);
+            free(resp_string);
+            return false;
+        }
+        resp_string = aux;
         if (i!=0) strcat(resp_string, ";");
         strcat(resp_string, types[i]);
     }
-    fprintf(stderr, "%s\n", token );
     while( token != NULL ) {
-        //fprintf(stderr, "%s\n", token );
-        if (regexParser(token, resp_string)) ret=true;
-        token = strtok(NULL, s);
+        if (regexParser(token, resp_string)){
+            free(resp_string); 
+            return true;
+        }
+        token = strtok(NULL,",");
    }
-    
+    free(str);
     free(resp_string);   
-    return ret;
+    return false;
 }
 
 /** escribe bytes encolados */
@@ -1071,7 +1076,6 @@ socksv5_close(struct selector_key *key) {
 
 static void
 socksv5_done(struct selector_key* key) {
-
     const int fds[] = {
         ATTACHMENT(key)->client_fd,
         ATTACHMENT(key)->origin_fd,
@@ -1094,13 +1098,16 @@ socksv5_done(struct selector_key* key) {
             close(t->inputTransformation[WRITE]);
             selector_unregister_fd(key->s,t->inputTransformation[WRITE] );
         }
+        free(t->raw_input_buffer);
         free(t);
         ATTACHMENT(key)->transformation = NULL;
     }
+    //TODO ACA SE AGREGA CUANDO SE FUE UN USUARIO EN METRICS
     free(ATTACHMENT(key)->headers_copy);
     free(ATTACHMENT(key)->raw_headers_buffer);
     free(ATTACHMENT(key)->raw_buff_a);
     free(ATTACHMENT(key)->raw_buff_b);
+    free(ATTACHMENT(key)->buffer_write_transform);
 }
 
 void
@@ -1168,7 +1175,6 @@ transformation_read (struct selector_key *key){
             buffer_write(b,LF);
             if(ATTACHMENT(key)->orig_copy.response.parser.chunked_total_num 
                                         <= 0){
-                fprintf(stderr, "MANDO END \n"); //TODO borrar
                 buffer_write(b, '0');
                 buffer_write(b, CR);
                 buffer_write(b,LF);
@@ -1282,7 +1288,6 @@ copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p, bool shou
         else{   
             if(p->chunked_state == chunked_body || 
                 p->chunked_state == chunked_cr_body ){
-                fprintf(stderr, "ESCRIBO %c(%d)\n", c ,c); // TODO Borrar
                 buffer_write(b, c);
             }
             state = http_chunked_parser(p,c);
