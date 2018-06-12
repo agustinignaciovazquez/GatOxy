@@ -65,8 +65,6 @@ int parse_cli_options(int argc, char **argv) {
 
     int c;
     char *aux;
-LOG_DEBUG("argv");
-printf("%d\n",argc );
     while ((c = getopt (argc, argv, "e:hl:L:M:o:p:t:v:T")) != -1)
         switch (c) {
           case 'h': //help
