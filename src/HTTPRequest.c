@@ -32,6 +32,7 @@ extern void http_parser_init (struct http_parser *p){
     p->request->header_content_length = -1;
     p->host_defined = false;
     p->is_proxy_connection = false;
+    p->method_supported =false;
     memset(p->request, 0, sizeof(*(p->request)));
     memset(p->request->headers_raw, 0, MAX_HEADERS_LENGTH_ARRAY);
     strcpy(p->request->headers_raw, PROXY_HEADER);
@@ -68,6 +69,7 @@ method_check(const uint8_t b, struct http_parser* p) {
     if(remaining_is_done(p)){
         if(b == SP){
             remaining_set(p, MAX_URI_LENGTH - 1);
+            p->method_supported =true;
             return http_absolute_uri;
         }
         return http_error_unsupported_method;
@@ -281,16 +283,21 @@ static enum header_autom_state
 proxy_header_case(const uint8_t b, struct http_parser* p){
 
     p->i_header++;
-    if (!IS_URL_CHAR(b) && (b != ':'))
+    if(p->i_header == PROXY_HEADER_LEN-1 && b == LF){
+        p->is_proxy_connection = true;
         return header_invalid;
+    }
+
     if(PROXY_HEADER[p->i_header] == b && p->i_header < PROXY_HEADER_LEN){
         return header_proxy_check;
+    }else if(!IS_URL_CHAR(b) && (b != ':') && (b != SP)){
+        return header_invalid;
     }else if(b == ':'){
         return header_value_start;
-    }else if(VERSION_STRING[p->i_header] != b){
+    }else if(PROXY_HEADER[p->i_header] != b){
         return header_name;
     }
-    p->is_proxy_connection = true;
+    
     return header_done;
 }
 
@@ -534,6 +541,7 @@ http_is_done(const enum http_state state, bool *errored) {
         case http_error_uri_too_long:
         case http_error_invalid_uri:
         case http_error_unsupported_version:
+        case http_error_malformed_request:
         case http_error_no_end:
             if (0 != errored) {
                 *errored = true;
@@ -584,9 +592,9 @@ http_consume(buffer *b, struct http_parser *p, bool *errored) {
         const uint8_t c = buffer_read(b);
         st = http_parser_feed(p, c);
         if (http_is_done(st, errored)){
-            if(p->is_proxy_connection){
+            /*if(p->is_proxy_connection){
                 strcpy(p->request->fqdn, "google.com"); //TODO fix
-            }
+            }*/
             break;
         }
     }

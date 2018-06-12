@@ -351,7 +351,7 @@ struct http_parser {
   uint32_t content_length;
   bool body_found;
   bool is_proxy_connection;
-
+  bool method_supported;
   uint16_t n;
   uint16_t i;
 };
@@ -416,6 +416,8 @@ enum http_response_status {
   status_unavailable_service                = 0x09,
   status_server_unreachable                 = 0x0A,
   status_bad_request                        = 0x0B,
+  status_recursive                          = 0x0C,
+  status_method_not_supported               = 0x0D,
 };
 
 /** convierte a errno en socks_response_status */

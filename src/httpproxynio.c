@@ -447,10 +447,14 @@ request_read(struct selector_key *key) {
         buffer_write_adv(b, n);
         int st = http_consume(b, &d->parser, &error);
         if(http_is_done(st, 0)) {
-            if(error){
-                d->status = status_general_proxy_server_failure;
+            if(error || strlen(d->request.fqdn) == 0){
+                if(d->parser.method_supported == false){
+                    d->status = status_method_not_supported;
+                }else{
+                    d->status = (d->parser.is_proxy_connection)? status_recursive : status_bad_request;
+                }
                 selector_set_interest_key(key, OP_WRITE);
-                return REQUEST_WRITE; //TODO mejorar errores
+                return REQUEST_WRITE; 
             }
             ret = request_process(key, d);
         }
@@ -706,6 +710,12 @@ static char * get_error_string(enum http_response_status status){
         case status_unavailable_service:
         case status_server_unreachable:
             ret = "ERROR 503 SERVICE UNAVAILABLE";
+        break;
+        case status_recursive:
+            ret = "ERROR 500 RECURSIVE";
+        break;
+        case status_method_not_supported:
+            ret = "ERROR 405 METHOD NOT SUPPORTED";
         break;
         case status_bad_request:
             ret = "ERROR 400 BAD REQUEST";
