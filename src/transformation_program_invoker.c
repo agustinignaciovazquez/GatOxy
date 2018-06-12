@@ -1,12 +1,12 @@
 /**
  * body_transformation.c -- realiza las transformaciones
  */
-
-#include "body_transformation.h"
+#include <stdio.h>
+#include "transformation_program_invoker.h"
 
 int
-process_with_external_program(char * prog, int pipeToChild[2], 
-									int pipeToParent[2]) {
+transformation_program_invoker(char * prog, int pipeToChild[2], 
+									int pipeToParent[2], char *errFile) {
 
     int pid;
     if(pipe(pipeToChild) < 0 || pipe(pipeToParent) < 0) {
@@ -27,6 +27,9 @@ process_with_external_program(char * prog, int pipeToChild[2],
            	close(pipeToParent[WRITE]);
            	exit(1);
        	}
+
+        freopen(errFile,"a" , stderr);
+
         system(prog);
         close(pipeToParent[WRITE]);
         pipeToParent[WRITE] = -1;

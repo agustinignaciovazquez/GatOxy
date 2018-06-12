@@ -13,7 +13,7 @@
 #include "stm.h"
 #include "httpproxynio.h"
 #include "netutils.h"
-#include "body_transformation.h"
+#include "transformation_program_invoker.h"
 #include "buffer_size.h"
 #include "logging.h"
 #include "proxy_state.h"
@@ -890,9 +890,8 @@ copy_r(struct selector_key *key) {
                         t->outputTransformation[READ] = -1;
                         t->outputTransformation[WRITE] = -1;
 
-                        //TODO cambiar nombre
-                        int res = process_with_external_program(t->prog, 
-                            t->inputTransformation, t->outputTransformation);
+                        int res = transformation_program_invoker(t->prog, 
+                            t->inputTransformation, t->outputTransformation, proxy_state->filters_stderr);
 
                         selector_fd_set_nio(t->inputTransformation[WRITE]);
                         selector_fd_set_nio(t->outputTransformation[READ]);

@@ -20,8 +20,8 @@ enum errors_2
  * abre los pipes necesarios y procesa la transformacion
  */
 int
-process_with_external_program(char * prog, int pipeToChild[2], 
-									int pipeToParent[2]);
+transformation_program_invoker(char * prog, int pipeToChild[2], 
+									int pipeToParent[2], char *errFile);
 
 
 #endif
