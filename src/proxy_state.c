@@ -21,9 +21,9 @@ proxy_state_create(int argc, const char **argv) {
 
 	// Set Defaults
 	proxy_state->bytesTransfered = 0;
-	proxy_state->port = 1082;
+	proxy_state->port = 1080;
   proxy_state->buffer = 5000;
-	proxy_state->confPort = 1083;
+	proxy_state->confPort = 1081;
 	proxy_state->do_transform = false;
 	proxy_state->transformation_command_index=0;
 	
