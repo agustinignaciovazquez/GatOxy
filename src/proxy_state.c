@@ -94,9 +94,7 @@ int parse_cli_options(int argc, char **argv) {
               strcpy(proxy_state->filters_stderr, optarg);
               proxy_state->filters_stderr[strlen(optarg)] = '\0';
               break;
-          case 'l': //proxy listening interface,, default all
-                puts("l chiquita");
-                puts(optarg);
+          case 'l': //proxy listening interface,, default al
           	   if (strcmp(optarg,"localhost") == 0){
                  proxy_state->http_interface = INADDR_LOOPBACK;
                }
@@ -105,7 +103,6 @@ int parse_cli_options(int argc, char **argv) {
               proxy_state->port = atoi(optarg);	
               break;
           case 'L': //mng listening interface, default loopback
-              puts(optarg);
           	   if (strcmp(optarg,"any") == 0)
                  proxy_state->proxy_interface = INADDR_ANY;
               break;

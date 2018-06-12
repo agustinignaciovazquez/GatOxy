@@ -13,7 +13,9 @@ char* get_time(){
 }
 
 int write_to_file(char *str, char *path) {
-  FILE *file;
+ /* //TODO Esta libreria funciona para loggear el comportamiento pero es bloqueante,
+ // por lo tanto se comenta la escritura pero se deja para debuggear 
+ FILE *file;
   file = fopen(path, "a");
    if(file == NULL){
       printf("\n\n***  Error writing log  ***\n\n");
@@ -21,7 +23,8 @@ int write_to_file(char *str, char *path) {
    }
    fprintf(file,"%s\n", str);
    fclose(file);
-   return 1;
+   return 1;*/
+  return 0;
 }
 
 void LOG_DEBUG(char *str) {
@@ -68,8 +71,11 @@ void LOG_PRIORITY(char *str) {
 }
 
 unsigned LOG_RECOVER(char *str, int bytes, char *path) {
-  FILE *fp;
+  //TODO IDEM LOG_WRITE
+  //unsigned n = snprintf(str, bytes," LOGS UNAVAILABLE\n");
+  /*FILE *fp;
   fp = fopen(path, "r");
+
   if(fp == NULL){
       return snprintf(str, bytes," LOGS UNAVAILABLE\n");
    }
@@ -80,7 +86,8 @@ unsigned LOG_RECOVER(char *str, int bytes, char *path) {
   fseek(fp, back , SEEK_SET);
   unsigned n = fread(str, sizeof(char), bytes, fp);
   fclose(fp);
-  return n;
+  return n;*/
+  return snprintf(str, bytes," LOGS UNAVAILABLE\n");
 }
 
 
