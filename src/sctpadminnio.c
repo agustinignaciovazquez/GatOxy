@@ -345,7 +345,7 @@ request_process(struct selector_key* key, struct request_st* d) {
     switch(d->parser.request->method) {
         case metrics:
             n = snprintf(ptr, count,
-                "****PROXY METRICS****\n"
+                "****PROXY METRICS****\n" //TODO conectarlo
                 " HTTP port: %d\n"
                 " SCTP port: %d\n"
                 " Transfered bytes: %d\n",

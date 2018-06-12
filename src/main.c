@@ -93,7 +93,7 @@ main(int argc, char **argv) {
     confAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     confAddr.sin_port        = htons(proxy_state->confPort);
 
-    const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);;
+    const int confServer = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP); // TODO hay que configurar lo de interface
     if (confServer < 0) {
         err_msg = "unable to create sctp socket";
         LOG_ERROR("unable to create sctp socket", "", "");

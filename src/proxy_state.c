@@ -26,6 +26,15 @@ proxy_state_create(int argc, char **argv) {
 	proxy_state->confPort = 1081;
 	proxy_state->do_transform = false;
 	proxy_state->transformation_command_index=0;
+
+  /** request count */
+  proxy_state->request_count = 0;
+
+  /** byte count */
+  proxy_state->byte_count = 0;
+
+  /** total current connections */
+  proxy_state->live_connections = 0;
 	
 	char default_command[] = "sed -u -e 's/a/4/g' -e 's/e/3/g' -e 's/i/1/g' -e 's/o/0/g' -e's/s/5/g'";
 	proxy_state->transformation_command = calloc(strlen(default_command) , sizeof(char));

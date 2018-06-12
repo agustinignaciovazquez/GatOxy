@@ -380,7 +380,12 @@ socksv5_passive_accept(struct selector_key *key) {
         printf("Connection failed \n");
         goto fail;
     }
-    //TODO ACA SE AGREGA CUANDO SE UNE UN USUARIO EN METRICS
+    
+    proxy_state->request_count++;
+    proxy_state->live_connections++;
+    char var[1000];
+    sockaddr_to_human(var, 1000,client_addr);
+    LOG_INFO(var, "asdfasd");
     memcpy(&state->client_addr, &client_addr, client_addr_len);
     state->client_addr_len = client_addr_len;
     if(SELECTOR_SUCCESS != selector_register(key->s, client, &socks5_handler,
@@ -979,6 +984,8 @@ copy_w(struct selector_key *key) {
     uint8_t *ptr = buffer_read_ptr(b, &size);
     n = send(key->fd, ptr, size, 0);
 
+    proxy_state->byte_count += n;
+
     if(n == -1 || (n == 0 && size != 0)) {
         shutdown(*d->fd, SHUT_WR);
         d->duplex &= ~OP_WRITE;
@@ -1104,7 +1111,8 @@ socksv5_done(struct selector_key* key) {
         free(t);
         ATTACHMENT(key)->transformation = NULL;
     }
-    //TODO ACA SE AGREGA CUANDO SE FUE UN USUARIO EN METRICS
+
+    proxy_state->live_connections++;
     free(ATTACHMENT(key)->headers_copy);
     free(ATTACHMENT(key)->raw_headers_buffer);
     free(ATTACHMENT(key)->raw_buff_a);

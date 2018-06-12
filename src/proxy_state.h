@@ -38,7 +38,14 @@ typedef struct global_proxy_state {
     /** buffer */
     unsigned buffer;
 
+    /** request count */
+    unsigned request_count;
 
+    /** byte count */
+    unsigned byte_count;
+
+    /** total current connections */
+    unsigned live_connections;
 
 } global_proxy_state;
 

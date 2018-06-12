@@ -16,16 +16,16 @@
 * identifier,a secret passcode, the method to use, and a data field
 *
 *                 +----+-----------------+----------+--------------+
-*                 |VER | SECRET_PASSCODE | METHOD   |    DATA      | //TODO esto de data no lo hice
+*                 |VER | SECRET_PASSCODE | METHOD   |    DATA      |
 *                 +----+-----------------+----------+--------------+
-*                 | 1  |  1 to MAX_INT   | 1 to 255 | 1 to MAX_INT |
+*                 | 1  |     string      | string   |   string     |
 *                 +----+-----------------+----------+--------------+
 *
 *  The VER field is set to X'01' for this version of the protocol.
-*  The SECRET_PASSCODE field contains an int used to auth with the admin passcode(hardcoded in code).
-*  The method field contains a char used to switch between all the methods.
-*  Client must send an int contained in data field that is used in some methods (like buffer_change_size()),
-*  If the method does not require this field (like get_metrics() or get_logs()) it should be set to zero
+*  The SECRET_PASSCODE field contains a string used to auth with the admin passcode(hardcoded in code).
+*  The method field contains a string used to switch between all the methods.
+*  Client must send a string contained in data field that is used in some methods (like buffer_change_size()),
+*  
 */
 /** estado del parser de admin request */
 enum admin_state {
