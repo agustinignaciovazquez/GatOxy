@@ -348,10 +348,14 @@ request_process(struct selector_key* key, struct request_st* d) {
                 "****PROXY METRICS****\n" //TODO conectarlo
                 " HTTP port: %d\n"
                 " SCTP port: %d\n"
+                " Concurrent Users: %d\n"
+                " Total Users Connected: %d\n"
                 " Transfered bytes: %d\n",
                 proxy_state->port,
                 proxy_state->confPort,
-                proxy_state->bytesTransfered);
+                proxy_state->live_connections,
+                proxy_state->request_count,
+                proxy_state->byte_count);
             break;
         case logs:
             n = snprintf(ptr, count,"****PROXY LOGS****\n");

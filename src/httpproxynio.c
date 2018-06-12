@@ -745,6 +745,7 @@ request_write(struct selector_key *key) {
         ret = ERROR;
     } else {
         ret = DONE;
+        proxy_state->byte_count += n;
         selector_set_interest(key->s,  *d->client_fd, OP_NOOP);
         if(-1 != *d->origin_fd) {
             selector_set_interest(key->s,  *d->origin_fd, OP_NOOP);
@@ -993,8 +994,6 @@ copy_w(struct selector_key *key) {
     uint8_t *ptr = buffer_read_ptr(b, &size);
     n = send(key->fd, ptr, size, 0);
 
-    proxy_state->byte_count += n;
-
     if(n == -1 || (n == 0 && size != 0)) {
         shutdown(*d->fd, SHUT_WR);
         d->duplex &= ~OP_WRITE;
@@ -1004,7 +1003,8 @@ copy_w(struct selector_key *key) {
         }
     } 
     else {
-        buffer_read_adv(b, n);       
+        buffer_read_adv(b, n);   
+        proxy_state->byte_count += n;    
     }
     copy_compute_interests(key->s, d);
     copy_compute_interests(key->s, d->other);
@@ -1121,7 +1121,7 @@ socksv5_done(struct selector_key* key) {
         ATTACHMENT(key)->transformation = NULL;
     }
 
-    proxy_state->live_connections++;
+    proxy_state->live_connections--;
     free(ATTACHMENT(key)->headers_copy);
     free(ATTACHMENT(key)->raw_headers_buffer);
     free(ATTACHMENT(key)->raw_buff_a);

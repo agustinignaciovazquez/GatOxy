@@ -3,6 +3,7 @@
  * TODO emprolijar
  */
 #include <stdio.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <assert.h>
 #include "admin.h"
@@ -243,7 +244,8 @@ parse_data(const uint8_t b, struct admin_parser* p) {
 	} else if (p->request->method == buffer_transformer) {
 		if (b == ' ') //in case extra space before or after digit
 			return admin_done_request;
-		if ((b-'0')<0) return admin_error_bad_request;
+		if (!isdigit(b)) 
+			return admin_error_bad_request;
 
 		proxy_state->buffer = proxy_state->buffer*10 + b-'0';
 		
