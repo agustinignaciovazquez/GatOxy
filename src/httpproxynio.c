@@ -929,27 +929,30 @@ bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]) {
 
     int j = MAX_TYPES_LEN;
     int size_to_increase = 0;
-    char * resp_string, * aux;
+    char * resp_string;
     char * token;
-    char * str = calloc(sizeof(char),strlen(proxy_state->transformation_types));
+    char * str = calloc(sizeof(char),strlen(proxy_state->transformation_types)+1);
     if(str == NULL)
         return false;
-    
+
+   
     for (int i = 0; i < n; i++) {
         size_to_increase += strlen(types[i]);
         size_to_increase += 7; // por el para separar';'
     }
-    str = calloc(sizeof(char),size_to_increase);
-    if(str == NULL){
+    
+    resp_string = calloc(sizeof(char),size_to_increase);
+    if(resp_string == NULL){
             free(str);
             return false;
     }
+    
     for (int i = 0; i < n; i++) {
         if (i!=0) 
             strcat(resp_string, ";");
         strcat(resp_string, types[i]);
     }
-
+    
     strcpy(str,proxy_state->transformation_types);
     token = strtok(str, ",");
     while( token != NULL ) {
