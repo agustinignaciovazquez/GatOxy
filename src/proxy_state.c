@@ -12,10 +12,10 @@
 */
 global_proxy_state *proxy_state;
 
-int parse_cli_options(int argc, char *argv[]);
+int parse_cli_options(int argc, char **argv);
 
 bool
-proxy_state_create(int argc, char **argv) {
+proxy_state_create(int argc, const char **argv) {
 
 	proxy_state = malloc(sizeof(*proxy_state));
 
@@ -59,7 +59,7 @@ proxy_state_destroy() {
     free(proxy_state);
 }
 
-int parse_cli_options(int argc, char *argv[]) {
+int parse_cli_options(int argc, char **argv) {
 
     int c;
     char *aux;
@@ -78,29 +78,25 @@ printf("%d\n",argc );
               exit(0);
               break;
           case 'e': //error file
-          	  // proxy_state->filters_stderr = realloc(strlen(optarg), sizeof(char));
-              // strcpy(proxy_state->error_file, optarg, strlen(optarg));
-              // proxy_state->filters_stderr[strlen(optarg)] = '\0';
+          	  proxy_state->filters_stderr = realloc(proxy_state->filters_stderr, strlen(optarg)*sizeof(char));
+              strcpy(proxy_state->filters_stderr, optarg);
+              proxy_state->filters_stderr[strlen(optarg)] = '\0';
               break;
           case 'l': //proxy listening interface,, default all
-          	  // proxy_state->http_interface = realloc(strlen(optarg), sizeof(char));
-              // strcpy(proxy_state->http_interface, optarg, strlen(optarg));
-              // proxy_state->http_interface[strlen(optarg)] = '\0';
+          	  proxy_state->http_interface = realloc(proxy_state->http_interface, strlen(optarg)*sizeof(char));
+              strcpy(proxy_state->http_interface, optarg);
+              proxy_state->http_interface[strlen(optarg)] = '\0';
               break;
           case 'p': //proxy port TODO
-              // proxy_state->http_interface = realloc(strlen(optarg), sizeof(char));
-              // strcpy(proxy_state->http_interface, optarg, strlen(optarg));
-              // proxy_state->http_interface[strlen(optarg)] = '\0';
+              proxy_state->port = atoi(optarg);	
               break;
           case 'L': //mng listening interface, default loopback
-              // proxy_state->proxy_interface = realloc(strlen(optarg), sizeof(char));
-              // strcpy(proxy_state->proxy_interface, optarg, strlen(optarg));
-              // proxy_state->proxy_interface[strlen(optarg)] = '\0';
+          	  proxy_state->proxy_interface = realloc(proxy_state->proxy_interface, strlen(optarg)*sizeof(char));
+              strcpy(proxy_state->proxy_interface, optarg);
+              proxy_state->proxy_interface[strlen(optarg)] = '\0';
               break;
           case 'o': //mng port TODO
-              // proxy_state->http_interface = realloc(strlen(optarg), sizeof(char));
-              // strcpy(proxy_state->http_interface, optarg, strlen(optarg));
-              // proxy_state->http_interface[strlen(optarg)] = '\0';
+          	  proxy_state->confPort = atoi(optarg);	
               break;
           case 'M': //media types to filter
               proxy_state->transformation_types = realloc(proxy_state->transformation_types, strlen(optarg)*sizeof(char));
@@ -108,10 +104,11 @@ printf("%d\n",argc );
               proxy_state->transformation_types[strlen(optarg)] = '\0';
               break;
           case 't': //cmd
-              // memcpy(proxy_conf->extern_cmd, optarg, strlen(optarg));
-              // proxy_conf->use_service = true;
+              proxy_state->transformation_command = realloc(proxy_state->transformation_command, strlen(optarg)*sizeof(char));
+              strcpy(proxy_state->transformation_command, optarg);
+              proxy_state->transformation_command[strlen(optarg)] = '\0';
               break;
-          case '?':
+          case '?': //TODO emprolijar los casos de erro de aca
               if (optopt == 'e' || optopt == 'l' || optopt == 'p' || optopt == 'L'
                       || optopt == 'o' || optopt == 'P' || optopt == 'm' || optopt == 'M'
                       || optopt == 't' )
@@ -125,15 +122,9 @@ printf("%d\n",argc );
               return false;
         }
 
-    // //get origin address
-    // memcpy(proxy_conf->origin_addres, argv[optind], strlen(argv[optind]));
-    // if (strlen(proxy_conf->origin_addres) < 1) {
-    //     LOG_DEBUG("ABORTING: Missing proxy address!");
-    //     return false;
-    // }
 
-    char str[750];
-    snprintf(str, 750, "New instance of proxy HTTP:\n \
+    char str[1000];
+    snprintf(str, 1000, "New instance of proxy HTTP:\n \
       \terror_file = %s\n \
       \thttp_interface = %s\n \
       \tproxy_port = %d\n \
