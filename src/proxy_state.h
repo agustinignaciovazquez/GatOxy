@@ -35,6 +35,8 @@ typedef struct global_proxy_state {
     /** interfaz proxy */
     char *proxy_interface;
 
+    /** buffer */
+    unsigned buffer;
 
 
 

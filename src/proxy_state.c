@@ -22,6 +22,7 @@ proxy_state_create(int argc, const char **argv) {
 	// Set Defaults
 	proxy_state->bytesTransfered = 0;
 	proxy_state->port = 1082;
+  proxy_state->buffer = 5000;
 	proxy_state->confPort = 1083;
 	proxy_state->do_transform = false;
 	proxy_state->transformation_command_index=0;
@@ -138,6 +139,7 @@ printf("%d\n",argc );
       \tproxy_mng_port = %d\n \
       \tdo_transform = %s\n \
       \ttransformation_types = %s\n \
+      \tbuffer= %d\n \
       \ttransformation_command = %s",
              (proxy_state->filters_stderr),
              (proxy_state->http_interface),
@@ -146,6 +148,7 @@ printf("%d\n",argc );
              (proxy_state->confPort),
              proxy_state->do_transform?"ON":"OFF",
              (proxy_state->transformation_types),
+             proxy_state->buffer,
              (proxy_state->transformation_command));
     LOG_PRIORITY(str);
     return true;

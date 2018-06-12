@@ -170,6 +170,11 @@ method_recon(const uint8_t b, struct admin_parser* p) {
 		p->i = 1;
 		p->request->method = type_transformer;
 		return admin_check_method;
+	} else if ('b' == b) {
+		remaining_set(p, BUFFER_TRANSFORMER_LEN);
+		p->i = 1;
+		p->request->method = buffer_transformer;
+		return admin_check_method;
 	}
 	return admin_error_bad_method;
 }
@@ -191,6 +196,11 @@ method_check(const uint8_t b, struct admin_parser* p) {
 				proxy_state->transformation_types[0] = '\0';
 				return admin_done_field_method;
 			} else  if (p->request->method == command_transformer) {
+				proxy_state->transformation_command_index=0;
+				proxy_state->transformation_command = realloc(proxy_state->transformation_command, 4*sizeof(char));
+				proxy_state->transformation_command[0]= '\0';
+				return admin_done_field_method;
+			} else  if (p->request->method == buffer_transformer) {
 				proxy_state->transformation_command_index=0;
 				proxy_state->transformation_command = realloc(proxy_state->transformation_command, 4*sizeof(char));
 				proxy_state->transformation_command[0]= '\0';
