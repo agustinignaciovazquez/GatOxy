@@ -15,7 +15,7 @@ global_proxy_state *proxy_state;
 int parse_cli_options(int argc, char **argv);
 
 bool
-proxy_state_create(int argc, const char **argv) {
+proxy_state_create(int argc, char **argv) {
 
 	proxy_state = malloc(sizeof(*proxy_state));
 

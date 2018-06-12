@@ -44,7 +44,7 @@ typedef struct global_proxy_state {
 
 /** crear estado de proxy */
 bool
-proxy_state_create(int argc, const char **argv);
+proxy_state_create(int argc, char **argv);
 
 /** destruir estado de proxy */
 void

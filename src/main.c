@@ -43,7 +43,7 @@ sigterm_handler(const int signal) {
 }
 
 int
-main(const int argc, const char **argv) {
+main(int argc, char **argv) {
 
 
     if (proxy_state_create(argc, argv) == false) {
