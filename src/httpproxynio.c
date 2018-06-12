@@ -383,9 +383,10 @@ socksv5_passive_accept(struct selector_key *key) {
     
     proxy_state->request_count++;
     proxy_state->live_connections++;
-    char var[1000];
-    sockaddr_to_human(var, 1000,client_addr);
-    LOG_INFO(var, "asdfasd");
+    
+    char var[50];
+    sockaddr_to_human(var, 50,(struct sockaddr*) &client_addr);
+    LOG_INFO(var, "connected");
     memcpy(&state->client_addr, &client_addr, client_addr_len);
     state->client_addr_len = client_addr_len;
     if(SELECTOR_SUCCESS != selector_register(key->s, client, &socks5_handler,
@@ -456,6 +457,7 @@ request_read(struct selector_key *key) {
                 selector_set_interest_key(key, OP_WRITE);
                 return REQUEST_WRITE; 
             }
+            LOG_INFO(d->request.fqdn, d->request.absolute_uri);
             ret = request_process(key, d);
         }
     } 
