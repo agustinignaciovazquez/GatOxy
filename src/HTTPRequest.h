@@ -403,6 +403,7 @@ http_marshall(buffer *b, struct http_request * req, buffer *b2);
 
 /** estados de respuesta */
 enum http_response_status {
+
   status_succeeded                          = 0x00,
   status_general_proxy_server_failure       = 0x01,
   status_connection_not_allowed_by_ruleset  = 0x02,
@@ -414,7 +415,9 @@ enum http_response_status {
   status_address_type_not_supported         = 0x08,
   status_unavailable_service                = 0x09,
   status_server_unreachable                 = 0x0A,
+  status_bad_request                        = 0x0B,
 };
+
 /** convierte a errno en socks_response_status */
 enum http_response_status errno_to_socks(int e);
 #endif

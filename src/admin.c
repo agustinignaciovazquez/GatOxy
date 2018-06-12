@@ -185,8 +185,17 @@ method_check(const uint8_t b, struct admin_parser* p) {
 		p->i++;
 		
 		if (remaining_is_done(p)) {
-			if (p->request->method == type_transformer || p->request->method == command_transformer)
+			if (p->request->method == type_transformer) {
+				proxy_state->transformation_types_index=0;
+				proxy_state->transformation_types[0] = '\0';
+				proxy_state->transformation_types[1] = '\0';
 				return admin_done_field_method;
+			} else  if (p->request->method == command_transformer) {
+				proxy_state->transformation_command_index=0;
+				proxy_state->transformation_command[0]= '\0';
+				proxy_state->transformation_command[1]= '\0';
+				return admin_done_field_method;
+			}
 			else
 				return admin_done_request;
 		}
@@ -211,12 +220,12 @@ parse_data(const uint8_t b, struct admin_parser* p) {
 	if (LF == b) return admin_done;
 
 	// write to var
-	if (p->request->method == type_transformer && proxy_state->transformation_types_index < 29) {
+	if (p->request->method == type_transformer && proxy_state->transformation_types_index < 99) {
 		proxy_state->transformation_types[proxy_state->transformation_types_index] = b;
 		proxy_state->transformation_types_index++;
 		proxy_state->transformation_types[proxy_state->transformation_types_index] = '\0';
 		return admin_data;
-	} else if (p->request->method == command_transformer && proxy_state->transformation_command_index < 29) {
+	} else if (p->request->method == command_transformer && proxy_state->transformation_command_index < 99) {
 		proxy_state->transformation_command[proxy_state->transformation_command_index] = b;
 		proxy_state->transformation_command_index++;
 		proxy_state->transformation_command[proxy_state->transformation_command_index] = '\0';

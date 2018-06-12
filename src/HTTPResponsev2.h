@@ -97,7 +97,7 @@ struct http_response {
     char http_version; 
     char headers[MAX_HEADERS_RESPONSE_LENGTH];
     uint32_t header_content_length;
-    char content_types[MAX_TYPES][MAX_TYPES_LEN]; 
+    char content_types[MAX_TYPES][MAX_TYPES_LEN];
     char code_reason[MAX_REASON_LENGTH];
     int status_code;
 };

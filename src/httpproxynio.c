@@ -1,4 +1,4 @@
-#include<stdio.h>
+#include <stdio.h>
 #include <stdlib.h>  // malloc
 #include <string.h>  // memset
 #include <assert.h>  // assert
@@ -6,25 +6,26 @@
 #include <time.h>
 #include <unistd.h>  // close
 #include <pthread.h>
-
 #include <arpa/inet.h>
-
 #include "HTTPRequest.h"
 #include "buffer.h"
 #include "HTTPResponsev2.h"
-
 #include "stm.h"
 #include "httpproxynio.h"
 #include "netutils.h"
 #include "body_transformation.h"
 #include "buffer_size.h"
+#include "logging.h"
+#include "proxy_state.h"
+#include <ctype.h>
+
+global_proxy_state *proxy_state;
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
-void
-compute_transformation_interests(struct selector_key *key);
-
-enum socks_v5state 
-{
+void compute_transformation_interests(struct selector_key *key);
+bool regexParser(char *regex, char *str);
+bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]);
+enum socks_v5state {
     /**
      * recibe el mensaje `request` del cliente, y lo inicia su proceso
      *
@@ -163,6 +164,8 @@ struct copy {
     struct http_request *       request;
     struct response_st          response;
 
+    bool should_filter;
+
     struct copy *               other;
 };
 
@@ -233,7 +236,7 @@ static const struct state_definition *
 socks5_describe_states(void);
 
 static int 
-copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p);
+copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p, bool should_filter);
 
 /** crea un nuevo `struct socks5' */
 static struct socks5 *
@@ -441,13 +444,13 @@ request_read(struct selector_key *key) {
     ptr = buffer_write_ptr(b, &count);
     n = recv(key->fd, ptr, count, 0);
     if(n > 0) {
-        fprintf(stderr, "reading");
         buffer_write_adv(b, n);
         int st = http_consume(b, &d->parser, &error);
         if(http_is_done(st, 0)) {
-            fprintf(stderr, "done reading");
             if(error){
-                return ERROR; //TODO mejorar errores
+                d->status = status_general_proxy_server_failure;
+                selector_set_interest_key(key, OP_WRITE);
+                return REQUEST_WRITE; //TODO mejorar errores
             }
             ret = request_process(key, d);
         }
@@ -530,7 +533,7 @@ request_resolv_blocking(void *data) {
     char buff[7];
     snprintf(buff, sizeof(buff), "%d",
                 ntohs(s->client_request.request.dest_port));
-    fprintf(stderr, "\nresolving %s:%s\n",s->client_request.request.fqdn, 
+    fprintf(stderr, "Resolving %s:%s\n",s->client_request.request.fqdn, 
                 buff); // TODO borrar
     getaddrinfo(s->client_request.request.fqdn, buff, &hints,
                     &s->origin_resolution);
@@ -560,7 +563,6 @@ request_resolv_done(struct selector_key *key) {
         freeaddrinfo(s->origin_resolution);
         s->origin_resolution = 0;
     }
-    fprintf(stderr, "resolved"); // TODO borrar
     return request_connect(key, d);
 }
 
@@ -607,21 +609,21 @@ request_connect(struct selector_key *key, struct request_st *d) {
         }
     } 
     else {
-        ATTACHMENT(key)->client_request.status = status_unavailable_service;
+        d->status = status_server_unreachable;
         selector_set_interest_key(key, OP_WRITE);
         return REQUEST_WRITE;
     }
 
 finally:
-    fprintf(stderr, "FINALLY CONNECT\n" ); // TODO borrar
     if (error) {
         if (*fd != -1) {
             close(*fd);
             *fd = -1;
             d->status = status_server_unreachable;
-            return REQUEST_WRITE;
         }
-        
+        d->status = status_server_unreachable;
+        selector_set_interest_key(key, OP_WRITE);
+        return REQUEST_WRITE;
     }
     d->status = status;
     return REQUEST_CONNECTING;
@@ -659,7 +661,7 @@ request_connecting(struct selector_key *key) {
     struct request_st * d1 = &ATTACHMENT(key)->client_request;
     if (getsockopt(key->fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
         *d->status = status_unavailable_service;
-        selector_set_interest(key->s,key->fd, OP_WRITE);
+        selector_set_interest(key->s,*d->client_fd, OP_WRITE);
         return REQUEST_WRITE;
     } 
     else {
@@ -669,7 +671,7 @@ request_connecting(struct selector_key *key) {
         } 
         else {
             *d->status = status_server_unreachable;
-            selector_set_interest(key->s,key->fd, OP_WRITE);
+            selector_set_interest(key->s,*d->client_fd, OP_WRITE);
             return REQUEST_WRITE;
         }
     }
@@ -677,6 +679,7 @@ request_connecting(struct selector_key *key) {
     if(-1 == http_marshall(ATTACHMENT(key)->headers_copy, &(d1->request),
                              b2)) {
         *d->status = status_general_proxy_server_failure;
+        selector_set_interest(key->s,*d->client_fd, OP_WRITE);
         return REQUEST_WRITE; 
     }
     selector_status s = 0;
@@ -694,7 +697,7 @@ request_write(struct selector_key *key) {
     struct request_st * d = &ATTACHMENT(key)->client_request;
     unsigned ret = REQUEST_WRITE;
     ssize_t n;
-    char * msg = "ERROR 500 WACHO"; // TODO cambiar
+    char * msg = "500 ERROR"; // TODO cambiar
     n = send(key->fd,msg, strlen(msg),0);
     if(n == -1) {
         ret = ERROR;
@@ -740,6 +743,7 @@ copy_init(const unsigned state, struct selector_key *key) {
     d->duplex               = OP_READ | OP_WRITE;
     d->client               = true;
     d->other                = &ATTACHMENT(key)->orig_copy;
+    d->should_filter        = false;
 
 
     d                       = &ATTACHMENT(key)->orig_copy;
@@ -749,7 +753,7 @@ copy_init(const unsigned state, struct selector_key *key) {
     d->wb                   = ATTACHMENT(key)->headers_copy;
     d->duplex               = OP_READ | OP_WRITE;
     d->other                = &ATTACHMENT(key)->client_copy;
-
+    d->should_filter        = false;
     response_init(key);
 
 }
@@ -827,19 +831,21 @@ copy_r(struct selector_key *key) {
             if(http_res_is_done(d->response.parser.state,0) == false){
                 int st = http_res_consume(b, &d->response.parser, &error);
                 if(http_res_is_done(st, 0)) {
-                    fprintf(stderr, "done reading"); //TODO borrar
                     if(error){
-                        fprintf(stderr, "error\n" ); //TODO borrar
-                        return ERROR;//TODO mejorar esto agregar codigo error
+                        return ERROR;//TODO ACA AGREGAR ERROR REQUEST AGUS
                     }
-                    if(transform == true && 
-                        d->response.parser.is_identity == true && 
+                     
+
+                     d->should_filter = should_filter(d->response.parser.content_types, d->response.response.content_types);
+
+                    if(proxy_state->do_transform == true && 
+                        d->response.parser.is_identity == true && d->should_filter == true &&  
                             ATTACHMENT(key)->transformation == NULL) {
                         struct transformation_data *t = 
                             malloc(sizeof(struct transformation_data));
                         ATTACHMENT(key)->transformation = t;
-                        t->prog = "sed -u -e 's/a/4/g' -e 's/e/3/g' -e 's/i/1/g' -e 's/o/0/g' -e's/5/-/g'";
-                        //TODO hardcode 
+                        // t->prog = "sed -u -e 's/a/4/g' -e 's/e/3/g' -e 's/i/1/g' -e 's/o/0/g' -e's/5/-/g'"; TODO
+                        t->prog = proxy_state->transformation_command; 
                         buffer_init(&(t->input_buffer), DEFAULT_BUFFER_SIZE,
                                          t->raw_input_buffer);
 
@@ -871,13 +877,13 @@ copy_r(struct selector_key *key) {
                     }
                 }  
                 copy_to_buffer(b, d->response.parser.buffer_output,
-                                &d->response.parser );
-            }else if(!(transform == true && 
+                                &d->response.parser,d->should_filter);
+            }else if(!(proxy_state->do_transform == true && d->should_filter == true &&
                         d->response.parser.is_identity == true)){
                 d->rb = d->response.parser.buffer_output;
             }
             copy_to_buffer(b, d->response.parser.buffer_output,
-                                &d->response.parser );
+                                &d->response.parser,d->should_filter);
         }
     }
     copy_compute_interests(key->s, d);
@@ -890,6 +896,46 @@ copy_r(struct selector_key *key) {
         ret = DONE;
     }
     return ret;
+}
+
+bool should_filter(uint16_t n, char types[][MAX_TYPES_LEN]) {
+    int j = 50;
+    char *aux = calloc(0,j);
+
+LOG_DEBUG("#########################");
+
+    for (int i = 0; i < n; i++) {
+
+
+
+        LOG_DEBUG(types[i]);
+
+        int size_to_increase = strlen(types[i]);
+        j += 7+size_to_increase;
+        aux = realloc(aux, j);
+
+        if (i!=0) strcat(aux, ";");
+
+       strcat(aux, types[i]);
+
+    }
+
+LOG_DEBUG("#########################");
+
+    
+
+    LOG_DEBUG(aux);
+
+
+
+    bool ret = regexParser(proxy_state->transformation_types , aux);
+
+    free(aux);
+
+    
+
+    return ret;
+
 }
 
 /** escribe bytes encolados */
@@ -1139,9 +1185,52 @@ transformation_write (struct selector_key *key){
     copy_compute_interests(key->s, &ATTACHMENT(key)->client_copy);
     copy_compute_interests(key->s , ATTACHMENT(key)->client_copy.other);
 }
+bool regexParser(char *regex, char *str) {
+
+    int regex_size = strlen(regex);
+
+    int str_size = strlen(str);
+
+    if (strlen(regex) == 0) return true; // TODO si no tengo regex, matcheo todo????
+
+
+
+    int regex_index = 0;
+
+    int str_index = 0;
+
+
+
+    int i;
+
+    for (i = 0; i < regex_size; ++i){
+
+        if (tolower(regex[i]) == '*') return true; // wildcard
+
+        if (tolower(str[i]) == ' ') return false; // invalid string str
+
+        if (tolower(regex[i]) == ' ') return false; // invalid string regex
+
+        if (tolower(regex[i]) != tolower(str[i])) return false; // default case, chars should match
+
+        str_index++;
+
+    }
+
+
+
+    // valido que los dos el siguiente sea \0
+
+    if (tolower(regex[i]) != tolower(str[str_index])) return false;
+
+
+
+    return true;
+
+ }
 
 static int 
-copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p ){
+copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p, bool should_filter){
 
     enum chunked_state state;
     if( b == source){
@@ -1149,7 +1238,7 @@ copy_to_buffer(buffer * source, buffer * b, struct http_res_parser *p ){
     }
     while(buffer_can_read(source)){
         const uint8_t c = buffer_read(source);
-        if(p->is_chunked == false || transform == false || 
+        if(p->is_chunked == false || proxy_state->do_transform  == false || should_filter == false ||
                 p->is_identity == false){
             buffer_write(b, c);
         }

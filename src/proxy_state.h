@@ -24,6 +24,7 @@ typedef struct global_proxy_state {
 
     /** comando de transformacion */
     char transformation_types[30];
+
     int transformation_types_index;
 
 } global_proxy_state;
