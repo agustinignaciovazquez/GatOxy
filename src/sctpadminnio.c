@@ -401,6 +401,7 @@ request_process(struct selector_key* key, struct request_st* d) {
                 proxy_state->transformation_types);
             break;
         case buffer_transformer:
+            update_buffer_size(proxy_state->buffer);
             n = snprintf(ptr, count,
                 "****PROXY TRANSFORMER****\n"
                 " STATUS: %s\n"
