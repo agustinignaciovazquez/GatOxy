@@ -65,7 +65,7 @@ int parse_cli_options(int argc, char **argv) {
     char *aux;
 LOG_DEBUG("argv");
 printf("%d\n",argc );
-    while ((c = getopt (argc, argv, "e:hl:L:m:M:o:p:P:t:v")) != -1)
+    while ((c = getopt (argc, argv, "e:hl:L:M:o:p:t:v:T")) != -1)
         switch (c) {
           case 'h': //help
           	  LOG_DEBUG("Manpage request by CLI");
@@ -107,6 +107,9 @@ printf("%d\n",argc );
               proxy_state->transformation_command = realloc(proxy_state->transformation_command, strlen(optarg)*sizeof(char));
               strcpy(proxy_state->transformation_command, optarg);
               proxy_state->transformation_command[strlen(optarg)] = '\0';
+              break;
+          case 'T': //cmd
+              proxy_state->do_transform = true;
               break;
           case '?': //TODO emprolijar los casos de erro de aca
               if (optopt == 'e' || optopt == 'l' || optopt == 'p' || optopt == 'L'
