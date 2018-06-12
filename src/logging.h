@@ -15,7 +15,12 @@ void LOG_DEBUG(char *);
 /**
 * Used for registering errors.
 */
-void LOG_ERROR(char *);
+void LOG_ERROR(char *message, char *ip, char *request);
+
+/**
+* Used for registering infortamion of request.
+*/
+void LOG_INFO(char *ip, char *request);
 
 /**
 * Used for registering important messages.

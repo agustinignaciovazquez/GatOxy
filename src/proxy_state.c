@@ -45,7 +45,7 @@ proxy_state_create(int argc, const char **argv) {
 
     int ret = parse_cli_options(argc, argv);
     if (ret < 0) {
-    	LOG_ERROR("Failed to initialize proxy conf. ABORTING!");
+    	LOG_ERROR("Failed to initialize proxy conf. ABORTING!", "ip", "request");
     	proxy_state_destroy();
     }
 	return true;
@@ -127,7 +127,7 @@ int parse_cli_options(int argc, char **argv) {
 
 
     char str[1000];
-    snprintf(str, 1000, "New instance of proxy HTTP:\n \
+    snprintf(str, 1000, "Starting new instance of proxy HTTP:\n \
       \terror_file = %s\n \
       \thttp_interface = %s\n \
       \tproxy_port = %d\n \

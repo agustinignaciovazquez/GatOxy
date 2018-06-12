@@ -25,16 +25,17 @@ int write_to_file(char *str, char *path) {
 }
 
 void LOG_DEBUG(char *str) {
+  if(DEV_ENABLED == 0) return;
   char aux[1000];
   strcpy(aux,get_time());
   aux[strlen(aux)-1] = '\0';
   strcat(aux, ":: DEBUG ::");
   strcat(aux, str);
   write_to_file(aux, DEV_LOG);
+  write_to_file(aux, PROD_LOG);
 }
 
-void LOG_ERROR(char *str) {
-  if(DEV_ENABLED == 0) return;
+void LOG_ERROR(char *str, char *ip, char *request) {
   char aux[1000];
   strcpy(aux,get_time());
   aux[strlen(aux)-1] = '\0';
@@ -42,6 +43,18 @@ void LOG_ERROR(char *str) {
   strcat(aux, str);
   write_to_file(aux, DEV_LOG);
   write_to_file(aux, PROD_LOG);
+}
+
+void LOG_INFO(char *ip, char *request) {
+  char aux[1000];
+  strcpy(aux,get_time());
+  aux[strlen(aux)-1] = '\0';
+  strcat(aux, ":: INFO :: ");
+  strcat(aux, ip);
+  strcat(aux, " :: ");
+  strcat(aux, request);
+  write_to_file(aux, PROD_LOG);
+  if(DEV_ENABLED == 1) write_to_file(aux, DEV_LOG);
 }
 
 void LOG_PRIORITY(char *str) {

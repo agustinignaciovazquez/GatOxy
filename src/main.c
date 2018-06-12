@@ -44,9 +44,8 @@ int
 main(const int argc, const char **argv) {
 
 
-    LOG_PRIORITY("Initializing proxy state");
     if (proxy_state_create(argc, argv) == false) {
-        LOG_ERROR("failed to init proxy state");
+        LOG_ERROR("failed to init proxy state", "", "");
         return 1;
     }
 
