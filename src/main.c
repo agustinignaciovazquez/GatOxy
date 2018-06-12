@@ -35,8 +35,10 @@ static bool done = false;
 
 static void
 sigterm_handler(const int signal) {
-    printf("signal %d, cleaning up and exiting\n", signal);
     LOG_DEBUG("received close signal. Cleaning and exiting!");
+    socksv5_pool_destroy();
+    sctp_pool_destroy();
+    proxy_state_destroy();
     done = true;
 }
 
