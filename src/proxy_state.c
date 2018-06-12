@@ -6,6 +6,9 @@
 #include "logging.h"
 #include "proxy_state.h"
 #include <string.h>
+#include <sys/types.h>   // socket
+#include <sys/socket.h>  // socket
+#include <netinet/in.h>
 /**
  * El estado global del proxy en cualquier momento, deberia poderse acceder 
  * desde cualquier parte del proxy
@@ -65,8 +68,8 @@ proxy_state_destroy() {
 	free(proxy_state->transformation_command);
 	free(proxy_state->transformation_types);
 	free(proxy_state->filters_stderr);
-	free(proxy_state->proxy_interface);
-	free(proxy_state->http_interface);
+	//free(proxy_state->proxy_interface);
+	//free(proxy_state->http_interface);
     free(proxy_state);
 }
 
@@ -92,15 +95,19 @@ int parse_cli_options(int argc, char **argv) {
               proxy_state->filters_stderr[strlen(optarg)] = '\0';
               break;
           case 'l': //proxy listening interface,, default all
-          	  // if (strcmp(optarg,"localhost"))
-             //    proxy_state->http_interface = INADDR_LOOPBACK;
+                puts("l chiquita");
+                puts(optarg);
+          	   if (strcmp(optarg,"localhost") == 0){
+                 proxy_state->http_interface = INADDR_LOOPBACK;
+               }
               break;
           case 'p': //proxy port TODO
               proxy_state->port = atoi(optarg);	
               break;
           case 'L': //mng listening interface, default loopback
-          	  // if (strcmp(optarg,"any"))
-             //    proxy_state->proxy_interface = INADDR_ANY;
+              puts(optarg);
+          	   if (strcmp(optarg,"any") == 0)
+                 proxy_state->proxy_interface = INADDR_ANY;
               break;
           case 'o': //mng port TODO
           	  proxy_state->confPort = atoi(optarg);	
@@ -145,9 +152,9 @@ int parse_cli_options(int argc, char **argv) {
       \tbuffer= %d\n \
       \ttransformation_command = %s",
              (proxy_state->filters_stderr),
-             (proxy_state->http_interface),
+             (proxy_state->http_interface == INADDR_ANY)? "INADDR_ANY":"LOOPBACK",
              (proxy_state->port),
-             (proxy_state->proxy_interface),
+             (proxy_state->proxy_interface == INADDR_ANY)? "INADDR_ANY":"LOOPBACK",
              (proxy_state->confPort),
              proxy_state->do_transform?"ON":"OFF",
              (proxy_state->transformation_types),
